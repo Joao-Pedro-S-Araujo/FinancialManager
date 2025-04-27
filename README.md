@@ -28,3 +28,10 @@ O **FinancialManager** é uma aplicação simples de gerenciamento de saldo banc
 3. Consultar o saldo atual.
 
 4. Visualizar o histórico de transações.
+
+## Estrutura do Projeto
+FinancialManager/
+│
+├── main.py            # Código principal da aplicação
+├── README.md          # Arquivo com informações sobre o projeto
+
