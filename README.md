@@ -19,3 +19,12 @@ O **FinancialManager** é uma aplicação simples de gerenciamento de saldo banc
    
    ```bash
    python main.py
+## A interface gráfica será aberta. Você pode:
+
+1. Realizar depósitos.
+
+2. Realizar saques.
+
+3. Consultar o saldo atual.
+
+4. Visualizar o histórico de transações.
