@@ -9,6 +9,7 @@ COR_TEXTO = "#ffffff"
 FONTE = ("Segoe UI", 12)
 
 saldo = 0
+historico_transacoes = []  # Lista para armazenar o histórico de transações
 
 # Funções
 def mostrar_saldo():
@@ -22,6 +23,8 @@ def depositar():
             messagebox.showerror("Erro", "Valor inválido para depósito.")
         else:
             saldo += valor
+            transacao = f"Depósito: R$ {valor:.2f}"
+            historico_transacoes.append(transacao)  # Adicionando transação ao histórico
             atualizar_saldo()
             messagebox.showinfo("Depósito", f"Depósito de R$ {valor:.2f} realizado com sucesso!")
             entrada_valor.delete(0, tk.END)
@@ -38,6 +41,8 @@ def sacar():
             messagebox.showwarning("Saldo insuficiente", "Você não tem saldo suficiente.")
         else:
             saldo -= valor
+            transacao = f"Saque: R$ {valor:.2f}"
+            historico_transacoes.append(transacao)  # Adicionando transação ao histórico
             atualizar_saldo()
             messagebox.showinfo("Saque", f"Saque de R$ {valor:.2f} realizado com sucesso!")
             entrada_valor.delete(0, tk.END)
@@ -47,10 +52,17 @@ def sacar():
 def atualizar_saldo():
     label_saldo.config(text=f"R$ {saldo:.2f}")
 
+def mostrar_historico():
+    if not historico_transacoes:
+        messagebox.showinfo("Histórico", "Nenhuma transação realizada ainda.")
+    else:
+        transacoes = "\n".join(historico_transacoes)
+        messagebox.showinfo("Histórico de Transações", transacoes)
+
 # Janela principal
 janela = tk.Tk()
-janela.title("Finança fácil")
-janela.geometry("400x400")
+janela.title("FinancialManager")
+janela.geometry("400x500")
 janela.configure(bg=COR_PRINCIPAL)
 
 # Estilo
@@ -94,6 +106,9 @@ btn_sacar.grid(row=0, column=1, padx=10, pady=5)
 
 btn_saldo = ttk.Button(janela, text="Mostrar Saldo", command=mostrar_saldo)
 btn_saldo.pack(pady=10)
+
+btn_historico = ttk.Button(janela, text="Histórico de Transações", command=mostrar_historico)
+btn_historico.pack(pady=10)
 
 btn_sair = ttk.Button(janela, text="Sair", command=janela.destroy)
 btn_sair.pack(pady=5)
