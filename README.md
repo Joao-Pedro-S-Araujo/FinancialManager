@@ -31,7 +31,7 @@ O **FinancialManager** é uma aplicação simples de gerenciamento de saldo banc
 
 ## Estrutura do Projeto
 FinancialManager/
-│
-├── main.py            # Código principal da aplicação
-├── README.md          # Arquivo com informações sobre o projeto
+
+├── main.py  
+├── README.md 
 
