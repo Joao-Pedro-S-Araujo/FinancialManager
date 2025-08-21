@@ -1,5 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+import json
+import os
+from datetime import datetime
 
 # Cores e estilo
 COR_PRINCIPAL = "#1e1e2f"
@@ -8,25 +11,56 @@ COR_BOTAO = "#00b894"
 COR_TEXTO = "#ffffff"
 FONTE = ("Segoe UI", 12)
 
+# --- Variáveis globais ---
+NOME_ARQUIVO = 'historico.json'
 saldo = 0
-historico_transacoes = []  # Lista para armazenar o histórico de transações
+historico_transacoes = []
 
-# Funções
+# --- Funções de persistência ---
+def carregar_dados():
+    global saldo, historico_transacoes
+    if os.path.exists(NOME_ARQUIVO):
+        with open(NOME_ARQUIVO, 'r', encoding='utf-8') as arquivo:
+            try:
+                dados = json.load(arquivo)
+                saldo = dados.get('saldo', 0)
+                historico_transacoes = dados.get('historico', [])
+            except json.JSONDecodeError:
+                # O arquivo está vazio ou corrompido, inicia com valores padrão
+                saldo = 0
+                historico_transacoes = []
+    # Se o arquivo não existe, as variáveis já estão com os valores iniciais (0 e [])
+
+def salvar_dados():
+    dados = {
+        'saldo': saldo,
+        'historico': historico_transacoes
+    }
+    with open(NOME_ARQUIVO, 'w', encoding='utf-8') as arquivo:
+        json.dump(dados, arquivo, indent=4)
+
+# --- Funções para a interface (com alterações) ---
+
 def mostrar_saldo():
     messagebox.showinfo("Saldo", f"Seu saldo atual é: R${saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
 def depositar():
     global saldo
     try:
-        valor = float(entrada_valor.get())
-        if valor < 0:
-            messagebox.showerror("Erro", "Valor inválido para depósito.")
+        valor = float(entrada_valor.get().replace(",", ".")) # Aceita vírgula como separador
+        if valor <= 0:
+            messagebox.showerror("Erro", "Valor inválido para depósito. O valor deve ser positivo.")
         else:
             saldo += valor
-            transacao = f"Depósito: R$ {valor:.2f}"
-            historico_transacoes.append(transacao)  # Adicionando transação ao histórico
+            transacao = {
+                "tipo": "depósito",
+                "valor": valor,
+                "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            }
+            historico_transacoes.append(transacao)
+            salvar_dados() # Salva após a transação
             atualizar_saldo()
-            messagebox.showinfo("Depósito", f"Depósito de R$ {valor:.2f} realizado com sucesso!")
+            messagebox.showinfo("Depósito", f"Depósito de R$ {valor:,.2f} realizado com sucesso!".replace(",", "X").replace(".", ",").replace("X", "."))
             entrada_valor.delete(0, tk.END)
     except ValueError:
         messagebox.showerror("Erro", "Digite um valor numérico válido.")
@@ -34,36 +68,51 @@ def depositar():
 def sacar():
     global saldo
     try:
-        valor = float(entrada_valor.get())
-        if valor < 0:
-            messagebox.showerror("Erro", "Valor inválido para saque.")
+        valor = float(entrada_valor.get().replace(",", "."))
+        if valor <= 0:
+            messagebox.showerror("Erro", "Valor inválido para saque. O valor deve ser positivo.")
         elif valor > saldo:
             messagebox.showwarning("Saldo insuficiente", "Você não tem saldo suficiente.")
         else:
             saldo -= valor
-            transacao = f"Saque: R$ {valor:.2f}"
-            historico_transacoes.append(transacao)  # Adicionando transação ao histórico
+            transacao = {
+                "tipo": "saque",
+                "valor": valor,
+                "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            }
+            historico_transacoes.append(transacao)
+            salvar_dados() # Salva após a transação
             atualizar_saldo()
-            messagebox.showinfo("Saque", f"Saque de R$ {valor:.2f} realizado com sucesso!")
+            messagebox.showinfo("Saque", f"Saque de R$ {valor:,.2f} realizado com sucesso!".replace(",", "X").replace(".", ",").replace("X", "."))
             entrada_valor.delete(0, tk.END)
     except ValueError:
         messagebox.showerror("Erro", "Digite um valor numérico válido.")
 
 def atualizar_saldo():
-    label_saldo.config(text=f"R$ {saldo:.2f}")
+    # Atualiza a exibição do saldo
+    label_saldo.config(text=f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
 def mostrar_historico():
     if not historico_transacoes:
-        messagebox.showinfo("Histórico", "Nenhuma transação realizada ainda.")
+        messagebox.showinfo("Histórico", "Nenhuma transação registrada.")
     else:
-        transacoes = "\n".join(historico_transacoes)
-        messagebox.showinfo("Histórico de Transações", transacoes)
+        # Formata o histórico de forma mais clara
+        transacoes_str = ""
+        for transacao in historico_transacoes:
+            tipo = transacao.get("tipo", "Desconhecido").capitalize()
+            valor = transacao.get("valor", 0)
+            data = transacao.get("data", "Sem data")
+            transacoes_str += f"{tipo}: R$ {valor:,.2f} em {data}\n".replace(",", "X").replace(".", ",").replace("X", ".")
+        messagebox.showinfo("Histórico de Transações", transacoes_str)
 
-# Janela principal
+# --- Janela principal (com chamadas das funções de persistência) ---
 janela = tk.Tk()
 janela.title("FinancialManager")
 janela.geometry("400x500")
 janela.configure(bg=COR_PRINCIPAL)
+
+# Carrega os dados salvos antes de inicializar a interface
+carregar_dados()
 
 # Estilo
 style = ttk.Style()
@@ -87,7 +136,7 @@ frame_saldo.pack(pady=10, padx=20, fill="x")
 label_saldo_titulo = tk.Label(frame_saldo, text="Saldo Atual", font=FONTE, fg=COR_TEXTO, bg=COR_SECUNDARIA)
 label_saldo_titulo.pack(pady=5)
 
-label_saldo = tk.Label(frame_saldo, text=f"R$ {saldo:.2f}", font=("Segoe UI", 16, "bold"), fg="#00cec9", bg=COR_SECUNDARIA)
+label_saldo = tk.Label(frame_saldo, text=f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), font=("Segoe UI", 16, "bold"), fg="#00cec9", bg=COR_SECUNDARIA)
 label_saldo.pack(pady=5)
 
 # Entrada de valor
@@ -112,5 +161,8 @@ btn_historico.pack(pady=10)
 
 btn_sair = ttk.Button(janela, text="Sair", command=janela.destroy)
 btn_sair.pack(pady=5)
+
+icone = tk.PhotoImage(file='icon_bank.png')
+janela.iconphoto(True, icone)
 
 janela.mainloop()
