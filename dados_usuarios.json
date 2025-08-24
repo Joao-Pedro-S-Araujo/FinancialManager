@@ -14,6 +14,26 @@
             "id": 3,
             "email": "jp@gmail.com",
             "senha_hash": "f4610aa514477222afac2b77f971d069780ca2846f375849f3dfa3c0047ebbd1"
+        },
+        {
+            "id": 4,
+            "email": "Joaopedro@gmail.com",
+            "senha_hash": "fc2db93096d5a22136584c1de820c34cd68f1be4ec62a29580cec35fdcb9042d"
+        },
+        {
+            "id": 5,
+            "email": "Joaopedro0@gmail.com",
+            "senha_hash": "fc2db93096d5a22136584c1de820c34cd68f1be4ec62a29580cec35fdcb9042d"
+        },
+        {
+            "id": 6,
+            "email": "joaopedrosilva@gmail.com",
+            "senha_hash": "fc2db93096d5a22136584c1de820c34cd68f1be4ec62a29580cec35fdcb9042d"
+        },
+        {
+            "id": 7,
+            "email": "jpp@gmail.com",
+            "senha_hash": "74ece1b0826011bcb7e26237fd9e27f67225d2aa3b0a89bcf585c01114f0a4cd"
         }
     ]
 }
