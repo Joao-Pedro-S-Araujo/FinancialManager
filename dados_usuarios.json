@@ -1,0 +1,19 @@
+{
+    "usuarios": [
+        {
+            "id": 1,
+            "email": "joao@gmail.com",
+            "senha_hash": "fc2db93096d5a22136584c1de820c34cd68f1be4ec62a29580cec35fdcb9042d"
+        },
+        {
+            "id": 2,
+            "email": "alan@gmail.com",
+            "senha_hash": "af41e68e1309fa29a5044cbdc36b90a3821d8807e68c7675a6c495112bc8a55f"
+        },
+        {
+            "id": 3,
+            "email": "jp@gmail.com",
+            "senha_hash": "f4610aa514477222afac2b77f971d069780ca2846f375849f3dfa3c0047ebbd1"
+        }
+    ]
+}
