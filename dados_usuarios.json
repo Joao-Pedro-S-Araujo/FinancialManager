@@ -34,6 +34,16 @@
             "id": 7,
             "email": "jpp@gmail.com",
             "senha_hash": "74ece1b0826011bcb7e26237fd9e27f67225d2aa3b0a89bcf585c01114f0a4cd"
+        },
+        {
+            "id": 8,
+            "email": "alanmelo@gmail.com",
+            "senha_hash": "f6e0a1e2ac41945a9aa7ff8a8aaa0cebc12a3bcc981a929ad5cf810a090e11ae"
+        },
+        {
+            "id": 9,
+            "email": "joaop@gmail.com",
+            "senha_hash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
         }
     ]
 }
