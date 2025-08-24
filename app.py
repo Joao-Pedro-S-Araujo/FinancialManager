@@ -216,6 +216,9 @@ janela = tk.Tk()
 janela.title("FinancialManager")
 janela.geometry("600x600")
 janela.configure(bg=COR_PRINCIPAL)
+# Icone do sistema
+icone = tk.PhotoImage(file="icon_bank.png")
+janela.iconphoto(False, icone)
 
 # --- Estilo para os botões TTK ---
 style = ttk.Style(janela)
