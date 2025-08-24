@@ -108,7 +108,7 @@ def mostrar_historico():
 # --- Janela principal (com chamadas das funções de persistência) ---
 janela = tk.Tk()
 janela.title("FinancialManager")
-janela.geometry("400x500")
+janela.geometry("560x510")
 janela.configure(bg=COR_PRINCIPAL)
 
 # Carrega os dados salvos antes de inicializar a interface
@@ -153,8 +153,8 @@ btn_depositar.grid(row=0, column=0, padx=10, pady=5)
 btn_sacar = ttk.Button(frame_botoes, text="Sacar", command=sacar)
 btn_sacar.grid(row=0, column=1, padx=10, pady=5)
 
-btn_saldo = ttk.Button(janela, text="Mostrar Saldo", command=mostrar_saldo)
-btn_saldo.pack(pady=10)
+btn_saldo = ttk.Button(frame_botoes, text="Mostrar Saldo", command=mostrar_saldo)
+btn_saldo.grid(row=0, column=2, padx=10, pady=5)
 
 btn_historico = ttk.Button(janela, text="Histórico de Transações", command=mostrar_historico)
 btn_historico.pack(pady=10)
