@@ -84,7 +84,7 @@ def buscar_usuario_por_email(email):
     conn = criar_conexao()
     if conn is None: return None
     
-    cursor = conn.cursor(dictionary=True) # Retorna resultados como dicionários
+    cursor = conn.cursor(dictionary=True)
     try:
         query = "SELECT * FROM usuarios WHERE email = %s"
         cursor.execute(query, (email,))
@@ -106,24 +106,19 @@ def registrar_transacao(usuario_id, tipo, valor):
     
     cursor = conn.cursor()
     try:
-        # Inicia uma transação (garante que ambas as operações ocorram ou nenhuma)
         conn.start_transaction()
 
-        # 1. Insere o registro na tabela de transações
         query_transacao = "INSERT INTO transacoes (usuario_id, tipo, valor) VALUES (%s, %s, %s)"
         cursor.execute(query_transacao, (usuario_id, tipo, valor))
         
-        # 2. Atualiza o saldo na tabela de usuários
         sinal = "+" if tipo == 'deposito' else "-"
         query_saldo = f"UPDATE usuarios SET saldo = saldo {sinal} %s WHERE id = %s"
         cursor.execute(query_saldo, (valor, usuario_id))
         
-        # Confirma a transação
         conn.commit()
         return True
     except Error as e:
         print(f"Erro ao registrar transação: {e}")
-        # Desfaz a transação em caso de erro
         conn.rollback()
         return False
     finally:
@@ -151,16 +146,45 @@ def obter_saldo(usuario_id):
 def obter_historico(usuario_id):
     """Retorna o histórico de transações de um usuário."""
     conn = criar_conexao()
-    if conn is None: return []
+    if conn is None: 
+        return []
     
     cursor = conn.cursor(dictionary=True)
     try:
-        query = "SELECT tipo, valor, DATE_FORMAT(data_transacao, '%d/%m/%Y %H:%i:%s') as data FROM transacoes WHERE usuario_id = %s ORDER BY data_transacao DESC"
-        cursor.execute(query, (usuario_id,))
-        return cursor.fetchall()
+        # NOVA ABORDAGEM: Buscar a data/hora bruta (datetime object).
+        query = """
+            SELECT 
+                tipo, 
+                valor, 
+                data_transacao
+            FROM 
+                transacoes 
+            WHERE 
+                usuario_id = %s
+            ORDER BY 
+                data_transacao DESC
+        """
+        
+        params = (usuario_id,)
+        cursor.execute(query, params)
+        historico_bruto = cursor.fetchall()
+
+        # Formatar a data no Python para evitar erros de SQL.
+        historico_formatado = []
+        for transacao in historico_bruto:
+            # Cria a chave 'data' com a data/hora formatada.
+            transacao['data'] = transacao['data_transacao'].strftime('%d/%m/%Y %H:%M:%S')
+            # Remove a chave original com o objeto datetime.
+            del transacao['data_transacao']
+            historico_formatado.append(transacao)
+            
+        return historico_formatado
+
     except Error as e:
-        print(f"Erro ao obter histórico: {e}")
+        print(f"Erro ao obter histórico para o usuario_id: {usuario_id}")
+        print(f"Detalhe do erro: {e}")
         return []
     finally:
         cursor.close()
         conn.close()
+

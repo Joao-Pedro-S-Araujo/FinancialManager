@@ -212,6 +212,7 @@ def sacar():
         messagebox.showerror("Erro", "Digite um valor numérico válido.")
 
 def mostrar_historico():
+    """Busca o histórico e o exibe em uma nova janela com a formatação correta."""
     user_id = usuario_logado['id']
     historico = db_manager.obter_historico(user_id)
     
@@ -220,12 +221,23 @@ def mostrar_historico():
         return
     
     transacoes_str = ""
-    for transacao in historico: 
+    for transacao in historico:
         tipo = transacao["tipo"].capitalize()
         valor = transacao["valor"]
-        data = transacao["data"]
-        transacoes_str += f"{data} - {tipo}: R$ {valor:,.2f}\\n".replace(",", "X").replace(".", ",").replace("X", ".")
-    
+        data_completa = transacao["data"]  # Ex: "29/08/2025 16:20:12"
+        
+        # Divide a string de data/hora no espaço
+        partes_data = data_completa.split(" ")
+        data_str = partes_data[0]  # "29/08/2025"
+        hora_str = partes_data[1]  # "16:20:12"
+        
+        # Formata o valor para o padrão brasileiro
+        valor_formatado = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        
+        # Monta a linha no novo formato desejado, com quebra de linha real (\n)
+        linha = f"{tipo}: {valor_formatado} - {data_str} - {hora_str}\n"
+        transacoes_str += linha
+      
     # Cria uma nova janela para o histórico
     janela_historico = tk.Toplevel(janela)
     janela_historico.title("Histórico de Transações")
