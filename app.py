@@ -77,7 +77,7 @@ def fazer_logout():
     global usuario_logado
     usuario_logado = None
 
-# --- Funções Financeiras (Agora específicas para o usuário logado) ---
+# --- Funções Financeiras  ---
 
 def atualizar_saldo_display():
     """Atualiza o label do saldo consultando o banco de dados."""
@@ -146,7 +146,6 @@ def fazer_login():
 
 def iniciar_sessao_app():
     """Prepara e exibe a tela principal da aplicação para o usuário logado."""
-    # ... (código quase igual, apenas atualiza a forma de pegar o email)
     label_bem_vindo.config(text=f"Bem-vindo(a), {usuario_logado['email']}")
     atualizar_saldo_display()
     mostrar_frame(frame_principal)
@@ -166,7 +165,7 @@ def fazer_logout():
     entry_senha_login.delete(0, tk.END)
     mostrar_frame(frame_login)
 
-# --- Funções Financeiras (Agora específicas para o usuário logado) ---
+# --- Funções Financeiras ---
 
 def atualizar_saldo_display():
     """Atualiza o label do saldo consultando o banco de dados."""
@@ -220,18 +219,12 @@ def mostrar_historico():
         messagebox.showinfo("Histórico", "Nenhuma transação registrada.")
         return
     
-    # ... (O resto da função para criar a janela de histórico continua igual)
-    # Apenas o loop de formatação muda ligeiramente, pois os dados vêm do db_manager
     transacoes_str = ""
-    for transacao in historico: # Já vem ordenado do banco de dados
+    for transacao in historico: 
         tipo = transacao["tipo"].capitalize()
         valor = transacao["valor"]
         data = transacao["data"]
         transacoes_str += f"{data} - {tipo}: R$ {valor:,.2f}\\n".replace(",", "X").replace(".", ",").replace("X", ".")
-    
-    # Cria uma nova janela para o histórico (código igual ao seu original)
-    janela_historico = tk.Toplevel(janela)
-    # ... (resto da função de criar janela igual)
     
     # Cria uma nova janela para o histórico
     janela_historico = tk.Toplevel(janela)
