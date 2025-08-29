@@ -234,7 +234,6 @@ def mostrar_historico():
         # Formata o valor para o padrão brasileiro
         valor_formatado = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        # Monta a linha no novo formato desejado, com quebra de linha real (\n)
         linha = f"{tipo}: {valor_formatado} - {data_str} - {hora_str}\n"
         transacoes_str += linha
       

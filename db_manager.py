@@ -151,7 +151,6 @@ def obter_historico(usuario_id):
     
     cursor = conn.cursor(dictionary=True)
     try:
-        # NOVA ABORDAGEM: Buscar a data/hora bruta (datetime object).
         query = """
             SELECT 
                 tipo, 
