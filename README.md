@@ -1,37 +1,46 @@
-# FinancialManager
+# Financial Manager
 
-## Descrição
+Este é um gerenciador financeiro simples desenvolvido em Python com a interface gráfica Tkinter e banco de dados MySQL.
 
-O **FinancialManager** é uma aplicação simples de gerenciamento de saldo bancário, onde o usuário pode realizar depósitos, saques, visualizar seu saldo atual e consultar o histórico de transações realizadas. Desenvolvido em **Python** utilizando a biblioteca **Tkinter** para a interface gráfica.
+## Funcionalidades
 
-### Funcionalidades:
-- Realizar depósitos e saques.
-- Exibir o saldo atual.
-- Exibir o histórico completo de transações realizadas.
-- Interface gráfica simples e intuitiva.
+- Cadastro e Login de usuários
+- Depósito e Saque de valores
+- Visualização de histórico de transações
 
-## Como Usar
+## Pré-requisitos
 
-1. Clone o repositório ou baixe os arquivos.
-2. Instale o Python (se ainda não estiver instalado).
-3. Abra o terminal ou prompt de comando e navegue até o diretório do projeto.
-4. Execute o arquivo `main.py`:
-   
-   ```bash
-   python main.py
-## A interface gráfica será aberta. Você pode:
+- Python 3.x
+- MySQL Server
 
-1. Realizar depósitos.
+## Instalação e Configuração
 
-2. Realizar saques.
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/Joao-Pedro-S-Araujo/FinancialManager.git
+    cd seu-repositorio
+    ```
 
-3. Consultar o saldo atual.
+2.  **Crie e ative um ambiente virtual:**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # No Windows: venv\Scripts\activate
+    ```
 
-4. Visualizar o histórico de transações.
+3.  **Instale as dependências:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-## Estrutura do Projeto
-FinancialManager/
+4.  **Configure o banco de dados:**
+    - Crie um banco de dados no MySQL chamado `financialmanager`.
+    - Copie o arquivo `.env.example` para um novo arquivo chamado `.env`:
+      ```bash
+      cp .env.example .env
+      ```
+    - Abra o arquivo `.env` e preencha com as suas credenciais do MySQL.
 
-├── main.py  
-├── README.md 
-
+5.  **Execute a aplicação:**
+    ```bash
+    python app.py
+    ```
