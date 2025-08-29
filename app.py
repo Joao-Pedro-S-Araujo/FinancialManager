@@ -220,7 +220,7 @@ def mostrar_historico():
     tree.heading('data', text='Data')
     tree.heading('hora', text='Hora')
     tree.heading('tipo', text='Tipo')
-    tree.heading('categoria', text='Categoria') # Agora esta linha funciona
+    tree.heading('categoria', text='Categoria') 
     tree.heading('valor', text='Valor')
     
     tree.column('data', anchor=tk.CENTER, width=100)
