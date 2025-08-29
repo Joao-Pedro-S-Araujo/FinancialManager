@@ -148,10 +148,11 @@ def depositar():
             messagebox.showerror("Erro", "O valor do depósito deve ser positivo.")
             return
         
-        if db_manager.registrar_transacao(user_id, 'deposito', valor):
+        if db_manager.registrar_transacao(user_id, 'deposito', valor): # Não precisa passar categoria aqui
             atualizar_saldo_display()
             messagebox.showinfo("Sucesso", f"Depósito de R$ {valor:,.2f} realizado.".replace(",", "X").replace(".", ",").replace("X", "."))
             entrada_valor.delete(0, tk.END)
+            combo_categorias.set('') # Limpa o seletor também
         else:
             messagebox.showerror("Erro de Banco de Dados", "Não foi possível registrar o depósito.")
 
@@ -162,6 +163,12 @@ def sacar():
     user_id = usuario_logado['id']
     saldo_atual = db_manager.obter_saldo(user_id)
     
+    categoria_selecionada = combo_categorias.get()
+    
+    if not categoria_selecionada:
+        messagebox.showwarning("Atenção", "Por favor, selecione uma categoria para o saque.")
+        return
+        
     try:
         valor = float(entrada_valor.get().replace(",", "."))
         if valor <= 0:
@@ -169,10 +176,12 @@ def sacar():
         elif valor > saldo_atual:
             messagebox.showwarning("Saldo Insuficiente", "Você não tem saldo suficiente para este saque.")
         else:
-            if db_manager.registrar_transacao(user_id, 'saque', valor):
+            # Passando a categoria para a função do db_manager
+            if db_manager.registrar_transacao(user_id, 'saque', valor, categoria_selecionada):
                 atualizar_saldo_display()
                 messagebox.showinfo("Sucesso", f"Saque de R$ {valor:,.2f} realizado.".replace(",", "X").replace(".", ",").replace("X", "."))
                 entrada_valor.delete(0, tk.END)
+                combo_categorias.set('') # Limpa o seletor de categoria
             else:
                 messagebox.showerror("Erro de Banco de Dados", "Não foi possível registrar o saque.")
     except ValueError:
@@ -187,17 +196,13 @@ def mostrar_historico():
         messagebox.showinfo("Histórico", "Nenhuma transação registrada.")
         return
 
-    transacoes_str = ""
-
-    # Cria uma nova janela para o histórico
     janela_historico = tk.Toplevel(janela)
     janela_historico.title("Histórico de Transações")
-    janela_historico.geometry("550x400")
+    janela_historico.geometry("650x400") # Aumentei um pouco a largura para a nova coluna
     janela_historico.configure(bg=COR_PRINCIPAL)
-    janela_historico.transient(janela) # Faz a janela ficar sobre a principal
-    janela_historico.grab_set() # Modal
+    janela_historico.transient(janela)
+    janela_historico.grab_set()
 
-    # Define o estilo da Treeview para combinar com o app
     style_tree = ttk.Style()
     style_tree.configure("Treeview",
                          background=COR_SECUNDARIA,
@@ -208,28 +213,26 @@ def mostrar_historico():
     style_tree.map('Treeview', background=[('selected', COR_BOTAO)])
     style_tree.configure("Treeview.Heading", font=("Segoe UI", 12, "bold"))
 
-
-    # Cria a Treeview com as colunas
-    colunas = ('data', 'hora', 'tipo', 'valor')
+    # CORREÇÃO APLICADA AQUI:
+    colunas = ('data', 'hora', 'tipo', 'categoria', 'valor')
     tree = ttk.Treeview(janela_historico, columns=colunas, show='headings', style="Treeview")
 
-    # Define os cabeçalhos
     tree.heading('data', text='Data')
     tree.heading('hora', text='Hora')
     tree.heading('tipo', text='Tipo')
+    tree.heading('categoria', text='Categoria') # Agora esta linha funciona
     tree.heading('valor', text='Valor')
     
-    # Ajusta a largura das colunas
     tree.column('data', anchor=tk.CENTER, width=100)
     tree.column('hora', anchor=tk.CENTER, width=100)
     tree.column('tipo', anchor=tk.CENTER, width=100)
-    tree.column('valor', anchor=tk.E, width=150) # Alinhado à direita (E = East)
+    tree.column('categoria', anchor=tk.CENTER, width=120)
+    tree.column('valor', anchor=tk.E, width=150)
 
-
-    # Adiciona os dados na Treeview
     for transacao in historico:
         tipo = transacao["tipo"].capitalize()
         valor = transacao["valor"]
+        categoria = transacao.get("categoria") or ""
         data_completa = transacao["data"]
         
         partes_data = data_completa.split(" ")
@@ -237,18 +240,14 @@ def mostrar_historico():
         hora_str = partes_data[1]
 
         valor_formatado = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        
-        # Adiciona uma tag de cor baseada no tipo da transação
         tag_cor = 'deposito' if transacao["tipo"] == 'deposito' else 'saque'
         
-        tree.insert('', tk.END, values=(data_str, hora_str, tipo, valor_formatado), tags=(tag_cor,))
+        tree.insert('', tk.END, values=(data_str, hora_str, tipo, categoria, valor_formatado), tags=(tag_cor,))
 
-    # Configura as cores das linhas
-    tree.tag_configure('deposito', foreground='#2ecc71') # Verde para depósitos
-    tree.tag_configure('saque', foreground='#e74c3c')   # Vermelho para saques
+    tree.tag_configure('deposito', foreground='#2ecc71')
+    tree.tag_configure('saque', foreground='#e74c3c')
 
-    tree.pack(expand=True, fill='both', padx=10, pady=10)
-      
+    tree.pack(expand=True, fill='both', padx=10, pady=10)      
 
 def abrir_janela_transferencia():
     """Cria uma nova janela para o usuário realizar a transferência."""
@@ -368,6 +367,11 @@ frame_saldo.pack(pady=10, padx=20, fill="x")
 tk.Label(frame_saldo, text="Saldo Atual", font=FONTE, fg=COR_TEXTO, bg=COR_SECUNDARIA).pack(pady=5)
 label_saldo = tk.Label(frame_saldo, text="R$ 0,00", font=FONTE_SALDO, fg="#00cec9", bg=COR_SECUNDARIA)
 label_saldo.pack(pady=5)
+
+tk.Label(frame_principal, text="Categoria da Despesa", font=FONTE, fg=COR_TEXTO, bg=COR_PRINCIPAL).pack(pady=(15,0))
+categorias = ["Alimentação", "Transporte", "Moradia", "Lazer", "Saúde", "Educação", "Compras", "Outros"]
+combo_categorias = ttk.Combobox(frame_principal, values=categorias, font=FONTE, justify="center", state="readonly")
+combo_categorias.pack(pady=5, ipady=3)
 
 entrada_valor = ttk.Entry(frame_principal, font=FONTE, justify="center")
 entrada_valor.pack(pady=15, ipadx=5, ipady=5)

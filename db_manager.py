@@ -99,7 +99,7 @@ def buscar_usuario_por_email(email):
 
 # --- Funções Financeiras ---
 
-def registrar_transacao(usuario_id, tipo, valor):
+def registrar_transacao(usuario_id, tipo, valor, categoria=None):
     """Registra uma transação e atualiza o saldo do usuário de forma atômica."""
     conn = criar_conexao()
     if conn is None: return False
@@ -108,8 +108,9 @@ def registrar_transacao(usuario_id, tipo, valor):
     try:
         conn.start_transaction()
 
-        query_transacao = "INSERT INTO transacoes (usuario_id, tipo, valor) VALUES (%s, %s, %s)"
-        cursor.execute(query_transacao, (usuario_id, tipo, valor))
+        # Query atualizada para incluir a categoria
+        query_transacao = "INSERT INTO transacoes (usuario_id, tipo, valor, categoria) VALUES (%s, %s, %s, %s)"
+        cursor.execute(query_transacao, (usuario_id, tipo, valor, categoria))
         
         sinal = "+" if tipo == 'deposito' else "-"
         query_saldo = f"UPDATE usuarios SET saldo = saldo {sinal} %s WHERE id = %s"
@@ -216,6 +217,7 @@ def obter_historico(usuario_id):
             SELECT 
                 tipo, 
                 valor, 
+                categoria,
                 data_transacao
             FROM 
                 transacoes 
