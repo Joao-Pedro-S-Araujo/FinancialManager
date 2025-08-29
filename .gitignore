@@ -1,9 +1,15 @@
-.DS_Store
-Thumbs.db
-__pycache__/
+# Arquivo de credenciais
+.env
+
+# Arquivos de ambiente virtual do Python
+venv/
 *.pyc
-*.pyo
-node_modules/
+__pycache__/
+
+# Arquivos de configuração de IDEs
 .vscode/
 .idea/
-venv/
+
+# Arquivos de sistema operacional
+.DS_Store
+Thumbs.db
