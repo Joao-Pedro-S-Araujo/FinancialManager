@@ -121,41 +121,8 @@ def sacar():
             else:
                 messagebox.showerror("Erro de Banco de Dados", "Não foi possível registrar o saque.")
     except ValueError:
-        messagebox.showerror("Erro", "Digite um valor numérico válido.")
-
-
-def fazer_login():
-    """Valida as credenciais do usuário consultando o banco de dados."""
-    global usuario_logado
-    email = entry_email_login.get().strip()
-    senha = entry_senha_login.get().strip()
-
-    if not email or not senha:
-        messagebox.showerror("Erro de Login", "Preencha todos os campos.")
-        return
-
-    senha_hashed = hash_senha(senha)
-    
-    user = db_manager.buscar_usuario_por_email(email)
-    
-    if user and user['senha_hash'] == senha_hashed:
-        usuario_logado = user
-        iniciar_sessao_app()
-    else:
+        messagebox.showerror("Erro", "Digite um valor numérico válido.")  
         messagebox.showerror("Erro de Login", "Email ou senha incorretos.")
-
-def iniciar_sessao_app():
-    """Prepara e exibe a tela principal da aplicação para o usuário logado."""
-    label_bem_vindo.config(text=f"Bem-vindo(a), {usuario_logado['email']}")
-    atualizar_saldo_display()
-    mostrar_frame(frame_principal)
-    messagebox.showerror("Erro de Login", "Email ou senha incorretos.")
-
-def iniciar_sessao_app():
-    """Prepara e exibe a tela principal da aplicação para o usuário logado."""
-    label_bem_vindo.config(text=f"Bem-vindo(a), {usuario_logado['email']}")
-    atualizar_saldo_display()
-    mostrar_frame(frame_principal)
 
 def fazer_logout():
     """Encerra a sessão do usuário e retorna para a tela de login."""
@@ -212,41 +179,128 @@ def sacar():
         messagebox.showerror("Erro", "Digite um valor numérico válido.")
 
 def mostrar_historico():
-    """Busca o histórico e o exibe em uma nova janela com a formatação correta."""
+    """Busca o histórico e o exibe em uma Treeview (tabela) em uma nova janela."""
     user_id = usuario_logado['id']
     historico = db_manager.obter_historico(user_id)
-    
+
     if not historico:
         messagebox.showinfo("Histórico", "Nenhuma transação registrada.")
         return
-    
+
     transacoes_str = ""
-    for transacao in historico:
-        tipo = transacao["tipo"].capitalize()
-        valor = transacao["valor"]
-        data_completa = transacao["data"]  # Ex: "29/08/2025 16:20:12"
-        
-        # Divide a string de data/hora no espaço
-        partes_data = data_completa.split(" ")
-        data_str = partes_data[0]  # "29/08/2025"
-        hora_str = partes_data[1]  # "16:20:12"
-        
-        # Formata o valor para o padrão brasileiro
-        valor_formatado = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        
-        linha = f"{tipo}: {valor_formatado} - {data_str} - {hora_str}\n"
-        transacoes_str += linha
-      
+
     # Cria uma nova janela para o histórico
     janela_historico = tk.Toplevel(janela)
     janela_historico.title("Histórico de Transações")
-    janela_historico.geometry("400x500")
+    janela_historico.geometry("550x400")
     janela_historico.configure(bg=COR_PRINCIPAL)
+    janela_historico.transient(janela) # Faz a janela ficar sobre a principal
+    janela_historico.grab_set() # Modal
+
+    # Define o estilo da Treeview para combinar com o app
+    style_tree = ttk.Style()
+    style_tree.configure("Treeview",
+                         background=COR_SECUNDARIA,
+                         foreground=COR_TEXTO,
+                         rowheight=25,
+                         fieldbackground=COR_SECUNDARIA,
+                         font=FONTE)
+    style_tree.map('Treeview', background=[('selected', COR_BOTAO)])
+    style_tree.configure("Treeview.Heading", font=("Segoe UI", 12, "bold"))
+
+
+    # Cria a Treeview com as colunas
+    colunas = ('data', 'hora', 'tipo', 'valor')
+    tree = ttk.Treeview(janela_historico, columns=colunas, show='headings', style="Treeview")
+
+    # Define os cabeçalhos
+    tree.heading('data', text='Data')
+    tree.heading('hora', text='Hora')
+    tree.heading('tipo', text='Tipo')
+    tree.heading('valor', text='Valor')
     
-    texto_historico = tk.Text(janela_historico, bg=COR_SECUNDARIA, fg=COR_TEXTO, font=FONTE, wrap="word", bd=0)
-    texto_historico.insert(tk.END, transacoes_str)
-    texto_historico.config(state="disabled") # Impede a edição
-    texto_historico.pack(expand=True, fill="both", padx=10, pady=10)
+    # Ajusta a largura das colunas
+    tree.column('data', anchor=tk.CENTER, width=100)
+    tree.column('hora', anchor=tk.CENTER, width=100)
+    tree.column('tipo', anchor=tk.CENTER, width=100)
+    tree.column('valor', anchor=tk.E, width=150) # Alinhado à direita (E = East)
+
+
+    # Adiciona os dados na Treeview
+    for transacao in historico:
+        tipo = transacao["tipo"].capitalize()
+        valor = transacao["valor"]
+        data_completa = transacao["data"]
+        
+        partes_data = data_completa.split(" ")
+        data_str = partes_data[0]
+        hora_str = partes_data[1]
+
+        valor_formatado = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        
+        # Adiciona uma tag de cor baseada no tipo da transação
+        tag_cor = 'deposito' if transacao["tipo"] == 'deposito' else 'saque'
+        
+        tree.insert('', tk.END, values=(data_str, hora_str, tipo, valor_formatado), tags=(tag_cor,))
+
+    # Configura as cores das linhas
+    tree.tag_configure('deposito', foreground='#2ecc71') # Verde para depósitos
+    tree.tag_configure('saque', foreground='#e74c3c')   # Vermelho para saques
+
+    tree.pack(expand=True, fill='both', padx=10, pady=10)
+      
+
+def abrir_janela_transferencia():
+    """Cria uma nova janela para o usuário realizar a transferência."""
+    
+    # Função interna para executar a lógica da transferência
+    def executar_transferencia():
+        email_destinatario = entry_email.get().strip()
+        try:
+            valor_str = entry_valor.get().strip().replace(",", ".")
+            valor = float(valor_str)
+
+            if not email_destinatario or valor <= 0:
+                messagebox.showwarning("Dados Inválidos", "Preencha o email e um valor positivo.", parent=janela_transf)
+                return
+
+            # Confirmação
+            if messagebox.askyesno("Confirmar Transferência", 
+                                   f"Deseja transferir R$ {valor:,.2f} para {email_destinatario}?", 
+                                   parent=janela_transf):
+                
+                id_remetente = usuario_logado['id']
+                resultado = db_manager.registrar_transferencia(id_remetente, email_destinatario, valor)
+
+                if resultado['sucesso']:
+                    messagebox.showinfo("Sucesso", resultado['mensagem'], parent=janela_transf)
+                    atualizar_saldo_display() # Atualiza o saldo na tela principal
+                    janela_transf.destroy()
+                else:
+                    messagebox.showerror("Erro", resultado['mensagem'], parent=janela_transf)
+
+        except ValueError:
+            messagebox.showerror("Erro de Valor", "Por favor, insira um valor numérico válido.", parent=janela_transf)
+
+    # Configuração da janela Toplevel
+    janela_transf = tk.Toplevel(janela)
+    janela_transf.title("Transferir Dinheiro")
+    janela_transf.geometry("400x300")
+    janela_transf.configure(bg=COR_PRINCIPAL)
+    janela_transf.resizable(False, False)
+    janela_transf.transient(janela)
+    janela_transf.grab_set()
+
+    # Widgets da janela de transferência
+    tk.Label(janela_transf, text="Email do Destinatário", font=FONTE, fg=COR_TEXTO, bg=COR_PRINCIPAL).pack(pady=(20, 5))
+    entry_email = ttk.Entry(janela_transf, font=FONTE, width=30, justify="center")
+    entry_email.pack(ipady=5)
+
+    tk.Label(janela_transf, text="Valor a Transferir (R$)", font=FONTE, fg=COR_TEXTO, bg=COR_PRINCIPAL).pack(pady=(20, 5))
+    entry_valor = ttk.Entry(janela_transf, font=FONTE, width=30, justify="center")
+    entry_valor.pack(ipady=5)
+
+    ttk.Button(janela_transf, text="Confirmar Transferência", command=executar_transferencia).pack(pady=30)
 
 # --- Gerenciamento da Interface Gráfica (GUI) ---
 
@@ -322,6 +376,8 @@ frame_botoes = tk.Frame(frame_principal, bg=COR_PRINCIPAL)
 frame_botoes.pack(pady=10)
 ttk.Button(frame_botoes, text="Depositar", command=depositar).grid(row=0, column=0, padx=10, pady=5)
 ttk.Button(frame_botoes, text="Sacar", command=sacar).grid(row=0, column=1, padx=10, pady=5)
+
+ttk.Button(frame_botoes, text="Transferir", command=abrir_janela_transferencia).grid(row=0, column=2, padx=10, pady=5)
 
 ttk.Button(frame_principal, text="Histórico de Transações", command=mostrar_historico).pack(pady=10)
 ttk.Button(frame_principal, text="Sair (Logout)", command=fazer_logout).pack(pady=20)

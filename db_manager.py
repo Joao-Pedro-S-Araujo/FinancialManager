@@ -125,6 +125,67 @@ def registrar_transacao(usuario_id, tipo, valor):
         cursor.close()
         conn.close()
 
+def registrar_transferencia(id_remetente, email_destinatario, valor):
+    """
+    Registra uma transferência entre dois usuários de forma atômica.
+    Garante que a operação completa (saque, depósito, registros) ocorra com sucesso.
+    """
+    conn = criar_conexao()
+    if conn is None: return {'sucesso': False, 'mensagem': 'Não foi possível conectar ao banco de dados.'}
+
+    cursor = conn.cursor(dictionary=True) # dictionary=True é útil para pegar o id
+
+    try:
+        # 1. Iniciar a transação atômica
+        conn.start_transaction()
+
+        # 2. Verificar se o remetente tem saldo suficiente
+        cursor.execute("SELECT saldo FROM usuarios WHERE id = %s FOR UPDATE", (id_remetente,)) # FOR UPDATE bloqueia a linha
+        saldo_remetente = cursor.fetchone()['saldo']
+        if saldo_remetente < valor:
+            conn.rollback()
+            return {'sucesso': False, 'mensagem': 'Saldo insuficiente.'}
+
+        # 3. Verificar se o destinatário existe
+        cursor.execute("SELECT id FROM usuarios WHERE email = %s", (email_destinatario,))
+        destinatario = cursor.fetchone()
+        if not destinatario:
+            conn.rollback()
+            return {'sucesso': False, 'mensagem': 'Email do destinatário não encontrado.'}
+        id_destinatario = destinatario['id']
+        
+        # 4. Evitar que o usuário transfira para si mesmo
+        if id_remetente == id_destinatario:
+            conn.rollback()
+            return {'sucesso': False, 'mensagem': 'Você não pode transferir para si mesmo.'}
+
+        # 5. Debitar o valor do remetente
+        cursor.execute("UPDATE usuarios SET saldo = saldo - %s WHERE id = %s", (valor, id_remetente))
+
+        # 6. Creditar o valor para o destinatário
+        cursor.execute("UPDATE usuarios SET saldo = saldo + %s WHERE id = %s", (valor, id_destinatario))
+        
+        # 7. Registrar a transação de 'saque' para o remetente
+        # Podemos adicionar um novo tipo ENUM 'transferencia' no DB ou tratar como saque/deposito
+        # Por simplicidade, vamos registrar como 'saque' por transferência.
+        # Uma melhoria seria: ALTER TABLE transacoes MODIFY tipo ENUM('deposito', 'saque', 'transferencia_enviada', 'transferencia_recebida');
+        cursor.execute("INSERT INTO transacoes (usuario_id, tipo, valor) VALUES (%s, 'saque', %s)", (id_remetente, valor))
+        
+        # 8. Registrar a transação de 'deposito' para o destinatário
+        cursor.execute("INSERT INTO transacoes (usuario_id, tipo, valor) VALUES (%s, 'deposito', %s)", (id_destinatario, valor))
+
+        # 9. Se tudo deu certo, confirmar as alterações
+        conn.commit()
+        return {'sucesso': True, 'mensagem': 'Transferência realizada com sucesso!'}
+
+    except Error as e:
+        print(f"Erro na transferência: {e}")
+        conn.rollback() # Desfaz tudo se qualquer passo falhar
+        return {'sucesso': False, 'mensagem': 'Ocorreu um erro interno. Tente novamente.'}
+    finally:
+        cursor.close()
+        conn.close()
+
 def obter_saldo(usuario_id):
     """Obtém o saldo atual de um usuário."""
     conn = criar_conexao()
