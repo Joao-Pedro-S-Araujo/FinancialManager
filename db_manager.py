@@ -250,3 +250,44 @@ def obter_historico(usuario_id):
         cursor.close()
         conn.close()
 
+
+def obter_gastos_por_categoria(usuario_id):
+    """
+    Busca no banco de dados e retorna a soma dos valores de saque (despesas)
+    agrupados por categoria para um determinado usuário.
+    """
+    conn = criar_conexao()
+    if conn is None: 
+        return []
+    
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Query que soma os valores ('valor') para cada 'categoria'
+        # Apenas para transações do tipo 'saque'
+        query = """
+            SELECT 
+                categoria, 
+                SUM(valor) as total
+            FROM 
+                transacoes 
+            WHERE 
+                usuario_id = %s AND tipo = 'saque' AND categoria IS NOT NULL
+            GROUP BY 
+                categoria
+            HAVING
+                total > 0
+            ORDER BY 
+                total DESC
+        """
+        
+        cursor.execute(query, (usuario_id,))
+        resultado = cursor.fetchall()
+        return resultado
+
+    except Error as e:
+        print(f"Erro ao obter gastos por categoria: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+

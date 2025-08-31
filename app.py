@@ -3,6 +3,10 @@ from tkinter import ttk, messagebox
 import hashlib
 from datetime import datetime
 import db_manager
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
+
 
 # --- Configurações de Estilo ---
 COR_PRINCIPAL = "#1e1e2f"
@@ -123,6 +127,70 @@ def sacar():
     except ValueError:
         messagebox.showerror("Erro", "Digite um valor numérico válido.")  
         messagebox.showerror("Erro de Login", "Email ou senha incorretos.")
+
+def abrir_janela_relatorio():
+    """Abre uma nova janela que exibe um gráfico de pizza dos gastos por categoria."""
+    
+    user_id = usuario_logado['id']
+    dados_categorias = db_manager.obter_gastos_por_categoria(user_id)
+
+    if not dados_categorias:
+        messagebox.showinfo("Relatório", "Não há dados de despesas categorizadas para exibir.", parent=janela)
+        return
+
+    # --- Criação da Janela ---
+    janela_rel = tk.Toplevel(janela)
+    janela_rel.title("Relatório de Despesas por Categoria")
+    janela_rel.geometry("800x600")
+    janela_rel.configure(bg=COR_PRINCIPAL)
+    janela_rel.transient(janela)
+    janela_rel.grab_set()
+
+    # --- Preparação dos Dados para o Gráfico ---
+    labels = []
+    sizes = []
+    for item in dados_categorias:
+        labels.append(item['categoria'])
+        sizes.append(item['total'])
+
+    # --- Criação do Gráfico Matplotlib ---
+    # Define a cor de fundo e a cor do texto para combinar com o tema do app
+    fig = Figure(figsize=(6, 5), dpi=100, facecolor=COR_PRINCIPAL)
+    ax = fig.add_subplot(111)
+
+    # Cria o gráfico de pizza com personalizações
+    wedges, texts, autotexts = ax.pie(
+        sizes, 
+        autopct='%1.1f%%', 
+        startangle=90, 
+        pctdistance=0.85,
+        textprops=dict(color="w") # Cor do texto de porcentagem
+    )
+    
+    # Desenha um círculo no centro para criar um "gráfico de rosca" (donut chart)
+    centre_circle = plt.Circle((0,0),0.70,fc=COR_PRINCIPAL)
+    fig.gca().add_artist(centre_circle)
+    
+    ax.axis('equal')  # Garante que o gráfico seja um círculo.
+
+    # Adiciona a legenda
+    ax.legend(wedges, labels,
+              title="Categorias",
+              loc="center left",
+              bbox_to_anchor=(1, 0, 0.5, 1),
+              facecolor=COR_SECUNDARIA,
+              labelcolor=COR_TEXTO,
+              title_fontproperties={'weight':'bold', 'size':'large'},
+              edgecolor='none'
+              )
+
+    fig.tight_layout()
+
+    # --- Integração do Gráfico no Tkinter ---
+    canvas = FigureCanvasTkAgg(fig, master=janela_rel)
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1, padx=10, pady=10)
+
 
 def fazer_logout():
     """Encerra a sessão do usuário e retorna para a tela de login."""
@@ -384,6 +452,10 @@ ttk.Button(frame_botoes, text="Sacar", command=sacar).grid(row=0, column=1, padx
 ttk.Button(frame_botoes, text="Transferir", command=abrir_janela_transferencia).grid(row=0, column=2, padx=10, pady=5)
 
 ttk.Button(frame_principal, text="Histórico de Transações", command=mostrar_historico).pack(pady=10)
+ttk.Button(frame_principal, text="Sair (Logout)", command=fazer_logout).pack(pady=20)
+
+ttk.Button(frame_principal, text="Ver Relatório de Despesas", command=abrir_janela_relatorio).pack(pady=5)
+
 ttk.Button(frame_principal, text="Sair (Logout)", command=fazer_logout).pack(pady=20)
 
 # --- Inicialização da Aplicação ---
