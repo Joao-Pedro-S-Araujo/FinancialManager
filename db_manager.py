@@ -2,6 +2,7 @@ import mysql.connector
 from mysql.connector import Error
 import os
 from dotenv import load_dotenv
+from datetime import datetime
 
 # Carrega as variáveis do arquivo .env para o ambiente
 load_dotenv()
@@ -134,20 +135,20 @@ def registrar_transferencia(id_remetente, email_destinatario, valor):
     conn = criar_conexao()
     if conn is None: return {'sucesso': False, 'mensagem': 'Não foi possível conectar ao banco de dados.'}
 
-    cursor = conn.cursor(dictionary=True) # dictionary=True é útil para pegar o id
+    cursor = conn.cursor(dictionary=True) 
 
     try:
-        # 1. Iniciar a transação atômica
+        # Iniciar a transação atômica
         conn.start_transaction()
 
-        # 2. Verificar se o remetente tem saldo suficiente
+        # Verificar se o remetente tem saldo suficiente
         cursor.execute("SELECT saldo FROM usuarios WHERE id = %s FOR UPDATE", (id_remetente,)) # FOR UPDATE bloqueia a linha
         saldo_remetente = cursor.fetchone()['saldo']
         if saldo_remetente < valor:
             conn.rollback()
             return {'sucesso': False, 'mensagem': 'Saldo insuficiente.'}
 
-        # 3. Verificar se o destinatário existe
+        # Verificar se o destinatário existe
         cursor.execute("SELECT id FROM usuarios WHERE email = %s", (email_destinatario,))
         destinatario = cursor.fetchone()
         if not destinatario:
@@ -155,27 +156,24 @@ def registrar_transferencia(id_remetente, email_destinatario, valor):
             return {'sucesso': False, 'mensagem': 'Email do destinatário não encontrado.'}
         id_destinatario = destinatario['id']
         
-        # 4. Evitar que o usuário transfira para si mesmo
+        # Evitar que o usuário transfira para si mesmo
         if id_remetente == id_destinatario:
             conn.rollback()
             return {'sucesso': False, 'mensagem': 'Você não pode transferir para si mesmo.'}
 
-        # 5. Debitar o valor do remetente
+        # Debitar o valor do remetente
         cursor.execute("UPDATE usuarios SET saldo = saldo - %s WHERE id = %s", (valor, id_remetente))
 
-        # 6. Creditar o valor para o destinatário
+        # Creditar o valor para o destinatário
         cursor.execute("UPDATE usuarios SET saldo = saldo + %s WHERE id = %s", (valor, id_destinatario))
         
-        # 7. Registrar a transação de 'saque' para o remetente
-        # Podemos adicionar um novo tipo ENUM 'transferencia' no DB ou tratar como saque/deposito
-        # Por simplicidade, vamos registrar como 'saque' por transferência.
-        # Uma melhoria seria: ALTER TABLE transacoes MODIFY tipo ENUM('deposito', 'saque', 'transferencia_enviada', 'transferencia_recebida');
+        # Registrar a transação de 'saque' para o remetente
         cursor.execute("INSERT INTO transacoes (usuario_id, tipo, valor) VALUES (%s, 'saque', %s)", (id_remetente, valor))
         
-        # 8. Registrar a transação de 'deposito' para o destinatário
+        # Registrar a transação de 'deposito' para o destinatário
         cursor.execute("INSERT INTO transacoes (usuario_id, tipo, valor) VALUES (%s, 'deposito', %s)", (id_destinatario, valor))
 
-        # 9. Se tudo deu certo, confirmar as alterações
+        # Se tudo deu certo, confirmar as alterações
         conn.commit()
         return {'sucesso': True, 'mensagem': 'Transferência realizada com sucesso!'}
 
@@ -205,38 +203,44 @@ def obter_saldo(usuario_id):
         cursor.close()
         conn.close()
 
-def obter_historico(usuario_id):
-    """Retorna o histórico de transações de um usuário."""
+def obter_historico(usuario_id, data_inicio=None, data_fim=None):
+    """
+    Retorna o histórico de transações de um usuário, opcionalmente
+    filtrado por um intervalo de datas.
+    """
     conn = criar_conexao()
     if conn is None: 
         return []
     
     cursor = conn.cursor(dictionary=True)
     try:
-        query = """
-            SELECT 
-                tipo, 
-                valor, 
-                categoria,
-                data_transacao
-            FROM 
-                transacoes 
-            WHERE 
-                usuario_id = %s
-            ORDER BY 
-                data_transacao DESC
+        # A query base permanece a mesma
+        query_base = """
+            SELECT tipo, valor, categoria, data_transacao
+            FROM transacoes 
+            WHERE usuario_id = %s 
         """
         
-        params = (usuario_id,)
-        cursor.execute(query, params)
+        params = [usuario_id]
+        
+        # Adiciona os filtros de data dinamicamente à query
+        if data_inicio:
+            query_base += " AND DATE(data_transacao) >= %s"
+            params.append(data_inicio)
+        
+        if data_fim:
+            query_base += " AND DATE(data_transacao) <= %s"
+            params.append(data_fim)
+            
+        query_base += " ORDER BY data_transacao DESC"
+        
+        cursor.execute(query_base, tuple(params))
         historico_bruto = cursor.fetchall()
 
-        # Formatar a data no Python para evitar erros de SQL.
+        # Formatar a data no Python (nenhuma mudança aqui)
         historico_formatado = []
         for transacao in historico_bruto:
-            # Cria a chave 'data' com a data/hora formatada.
             transacao['data'] = transacao['data_transacao'].strftime('%d/%m/%Y %H:%M:%S')
-            # Remove a chave original com o objeto datetime.
             del transacao['data_transacao']
             historico_formatado.append(transacao)
             
@@ -249,7 +253,6 @@ def obter_historico(usuario_id):
     finally:
         cursor.close()
         conn.close()
-
 
 def obter_gastos_por_categoria(usuario_id):
     """
@@ -291,3 +294,103 @@ def obter_gastos_por_categoria(usuario_id):
         cursor.close()
         conn.close()
 
+def obter_resumo_mensal(usuario_id):
+    """
+    Retorna um dicionário com o total de entradas (depósitos) e saídas (saques)
+    para o mês e ano correntes.
+    """
+    conn = criar_conexao()
+    if conn is None:
+        return {'entradas': 0, 'saidas': 0}
+    
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Usamos SUM(CASE...) para calcular ambas as somas em uma única consulta
+        query = """
+            SELECT
+                SUM(CASE WHEN tipo = 'deposito' THEN valor ELSE 0 END) as total_entradas,
+                SUM(CASE WHEN tipo = 'saque' THEN valor ELSE 0 END) as total_saidas
+            FROM
+                transacoes
+            WHERE
+                usuario_id = %s AND
+                MONTH(data_transacao) = MONTH(CURDATE()) AND
+                YEAR(data_transacao) = YEAR(CURDATE())
+        """
+        cursor.execute(query, (usuario_id,))
+        resultado = cursor.fetchone()
+        
+        # Garante que retornamos valores numéricos mesmo se não houver transações
+        entradas = resultado['total_entradas'] if resultado['total_entradas'] else 0
+        saidas = resultado['total_saidas'] if resultado['total_saidas'] else 0
+        
+        return {'entradas': entradas, 'saidas': saidas}
+        
+    except Error as e:
+        print(f"Erro ao obter resumo mensal: {e}")
+        return {'entradas': 0, 'saidas': 0}
+    finally:
+        cursor.close()
+        conn.close()
+
+def obter_top_categorias(usuario_id, limite=5):
+    """
+    Retorna as categorias com maiores gastos no mês corrente, com um limite.
+    """
+    # Esta função é muito parecida com obter_gastos_por_categoria,
+    # mas focada no mês atual e com um limite.
+    conn = criar_conexao()
+    if conn is None: return []
+    
+    cursor = conn.cursor(dictionary=True)
+    try:
+        query = """
+            SELECT categoria, SUM(valor) as total
+            FROM transacoes
+            WHERE usuario_id = %s AND tipo = 'saque' AND categoria IS NOT NULL
+              AND MONTH(data_transacao) = MONTH(CURDATE())
+              AND YEAR(data_transacao) = YEAR(CURDATE())
+            GROUP BY categoria
+            ORDER BY total DESC
+            LIMIT %s
+        """
+        cursor.execute(query, (usuario_id, limite))
+        return cursor.fetchall()
+    except Error as e:
+        print(f"Erro ao obter top categorias: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+def obter_ultimas_transacoes(usuario_id, limite=4):
+    """ Retorna as últimas N transações de um usuário. """
+    conn = criar_conexao()
+    if conn is None: return []
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        query = """
+            SELECT tipo, valor, categoria, data_transacao
+            FROM transacoes
+            WHERE usuario_id = %s
+            ORDER BY data_transacao DESC
+            LIMIT %s
+        """
+        cursor.execute(query, (usuario_id, limite))
+        historico_bruto = cursor.fetchall()
+
+        historico_formatado = []
+        for transacao in historico_bruto:
+            transacao['data'] = transacao['data_transacao'].strftime('%d/%m/%Y') # Apenas data, sem hora
+            del transacao['data_transacao']
+            historico_formatado.append(transacao)
+        
+        return historico_formatado
+
+    except Error as e:
+        print(f"Erro ao obter últimas transações: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
