@@ -337,8 +337,7 @@ def obter_top_categorias(usuario_id, limite=5):
     """
     Retorna as categorias com maiores gastos no mês corrente, com um limite.
     """
-    # Esta função é muito parecida com obter_gastos_por_categoria,
-    # mas focada no mês atual e com um limite.
+    
     conn = criar_conexao()
     if conn is None: return []
     
@@ -382,7 +381,7 @@ def obter_ultimas_transacoes(usuario_id, limite=4):
 
         historico_formatado = []
         for transacao in historico_bruto:
-            transacao['data'] = transacao['data_transacao'].strftime('%d/%m/%Y') # Apenas data, sem hora
+            transacao['data'] = transacao['data_transacao'].strftime('%d/%m/%Y') 
             del transacao['data_transacao']
             historico_formatado.append(transacao)
         
