@@ -214,9 +214,8 @@ def obter_historico(usuario_id, data_inicio=None, data_fim=None):
     
     cursor = conn.cursor(dictionary=True)
     try:
-        # A query base permanece a mesma
         query_base = """
-            SELECT tipo, valor, categoria, data_transacao
+            SELECT id, tipo, valor, categoria, data_transacao
             FROM transacoes 
             WHERE usuario_id = %s 
         """
@@ -237,7 +236,7 @@ def obter_historico(usuario_id, data_inicio=None, data_fim=None):
         cursor.execute(query_base, tuple(params))
         historico_bruto = cursor.fetchall()
 
-        # Formatar a data no Python (nenhuma mudança aqui)
+        # Formatar a data no Python 
         historico_formatado = []
         for transacao in historico_bruto:
             transacao['data'] = transacao['data_transacao'].strftime('%d/%m/%Y %H:%M:%S')
@@ -265,8 +264,6 @@ def obter_gastos_por_categoria(usuario_id):
     
     cursor = conn.cursor(dictionary=True)
     try:
-        # Query que soma os valores ('valor') para cada 'categoria'
-        # Apenas para transações do tipo 'saque'
         query = """
             SELECT 
                 categoria, 
@@ -305,7 +302,6 @@ def obter_resumo_mensal(usuario_id):
     
     cursor = conn.cursor(dictionary=True)
     try:
-        # Usamos SUM(CASE...) para calcular ambas as somas em uma única consulta
         query = """
             SELECT
                 SUM(CASE WHEN tipo = 'deposito' THEN valor ELSE 0 END) as total_entradas,
@@ -320,7 +316,6 @@ def obter_resumo_mensal(usuario_id):
         cursor.execute(query, (usuario_id,))
         resultado = cursor.fetchone()
         
-        # Garante que retornamos valores numéricos mesmo se não houver transações
         entradas = resultado['total_entradas'] if resultado['total_entradas'] else 0
         saidas = resultado['total_saidas'] if resultado['total_saidas'] else 0
         
@@ -390,6 +385,100 @@ def obter_ultimas_transacoes(usuario_id, limite=4):
     except Error as e:
         print(f"Erro ao obter últimas transações: {e}")
         return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def obter_transacao_por_id(transacao_id):
+    """ Busca e retorna os detalhes de uma única transação pelo seu ID. """
+    conn = criar_conexao()
+    if conn is None: return None
+    
+    cursor = conn.cursor(dictionary=True)
+    try:
+        query = "SELECT * FROM transacoes WHERE id = %s"
+        cursor.execute(query, (transacao_id,))
+        return cursor.fetchone()
+    except Error as e:
+        print(f"Erro ao buscar transação por ID: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def excluir_transacao(transacao_id, usuario_id):
+    """ Exclui uma transação e ajusta o saldo do usuário de forma atômica. """
+    conn = criar_conexao()
+    if conn is None: return False
+    
+    cursor = conn.cursor(dictionary=True)
+    try:
+        conn.start_transaction()
+        
+        # 1. Pega os detalhes da transação a ser excluída
+        transacao = obter_transacao_por_id(transacao_id)
+        if not transacao:
+            conn.rollback()
+            return False
+
+        valor = transacao['valor']
+        tipo = transacao['tipo']
+        
+        # 2. Reverte o valor no saldo do usuário
+        # Se era um saque, devolve o dinheiro (+). Se era um depósito, retira (-).
+        sinal_ajuste = "+" if tipo == 'saque' else "-"
+        query_saldo = f"UPDATE usuarios SET saldo = saldo {sinal_ajuste} %s WHERE id = %s"
+        cursor.execute(query_saldo, (valor, usuario_id))
+        
+        # 3. Exclui a transação
+        cursor.execute("DELETE FROM transacoes WHERE id = %s", (transacao_id,))
+        
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"Erro ao excluir transação: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def editar_transacao(transacao_id, usuario_id, novo_valor, nova_categoria):
+    """ Edita uma transação e ajusta o saldo do usuário de forma atômica. """
+    conn = criar_conexao()
+    if conn is None: return {'sucesso': False}
+    
+    cursor = conn.cursor(dictionary=True)
+    try:
+        conn.start_transaction()
+        
+        # 1. Pega os detalhes da transação original
+        transacao_original = obter_transacao_por_id(transacao_id)
+        if not transacao_original:
+            conn.rollback()
+            return {'sucesso': False}
+        
+        valor_original = transacao_original['valor']
+        
+        # 2. Calcula a diferença de valor para ajustar o saldo
+        # Se o novo valor for maior, a diferença é negativa para o saldo (saiu mais dinheiro)
+        diferenca = valor_original - novo_valor
+        
+        # 3. Ajusta o saldo do usuário com essa diferença
+        query_saldo = "UPDATE usuarios SET saldo = saldo + %s WHERE id = %s"
+        cursor.execute(query_saldo, (diferenca, usuario_id))
+
+        # 4. Atualiza a transação com os novos dados
+        query_update = "UPDATE transacoes SET valor = %s, categoria = %s WHERE id = %s"
+        cursor.execute(query_update, (novo_valor, nova_categoria, transacao_id))
+        
+        conn.commit()
+        return {'sucesso': True}
+    except Error as e:
+        print(f"Erro ao editar transação: {e}")
+        conn.rollback()
+        return {'sucesso': False}
     finally:
         cursor.close()
         conn.close()
