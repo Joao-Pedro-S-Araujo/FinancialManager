@@ -452,7 +452,7 @@ janela = tk.Tk()
 janela.title("FinancialManager")
 janela.geometry("1000x700")
 janela.configure(bg=COR_PRINCIPAL)
-janela.iconphoto(False, tk.PhotoImage(file="icon_bank.png"))
+# janela.iconphoto(False, tk.PhotoImage(file="icon_bank.png"))
 
 style = ttk.Style(janela)
 style.theme_use("default")

@@ -3,14 +3,12 @@ import os
 from datetime import datetime
 
 # --- Configurações da Base de Dados ---
-# O nome do ficheiro da base de dados. Ficará na mesma pasta do projeto.
 DB_FILE = "financial_manager.db"
 
 def criar_conexao():
     """Cria e retorna uma conexão com a base de dados SQLite."""
     try:
         conn = sqlite3.connect(DB_FILE)
-        # Permite que os resultados venham como dicionários (muito útil)
         conn.row_factory = sqlite3.Row
         return conn
     except sqlite3.Error as e:
@@ -28,7 +26,6 @@ def inicializar_banco():
     
     cursor = conn.cursor()
     try:
-        # Habilita o suporte a chaves estrangeiras (importante para o ON DELETE CASCADE)
         cursor.execute("PRAGMA foreign_keys = ON;")
 
         cursor.execute("""
@@ -69,7 +66,6 @@ def inicializar_banco():
     finally:
         conn.close()
 
-# ... (O resto das funções será adaptado para a sintaxe do SQLite, usando '?' em vez de '%s')
 
 # =================================================================
 # 2. FUNÇÕES DE UTILIZADOR
@@ -102,7 +98,6 @@ def buscar_usuario_por_email(email):
     finally:
         if conn: conn.close()
 
-# ... (Restantes funções adaptadas)
 def registrar_transacao(usuario_id, tipo, valor, categoria=None):
     conn = criar_conexao()
     if conn is None: return False
@@ -159,7 +154,6 @@ def registrar_transferencia(id_remetente, email_destinatario, valor):
     finally:
         if conn: conn.close()
 
-# ... (Restantes funções adaptadas para SQLite)
 
 def obter_saldo(usuario_id):
     conn = criar_conexao()
@@ -194,7 +188,6 @@ def obter_historico(usuario_id, data_inicio=None, data_fim=None):
         historico_formatado = []
         for transacao_row in historico_bruto:
             transacao_dict = dict(transacao_row)
-            # SQLite devolve strings de data, precisamos de converter para objeto datetime
             dt_obj = datetime.strptime(transacao_dict['data_transacao'], '%Y-%m-%d %H:%M:%S')
             transacao_dict['data'] = dt_obj.strftime('%d/%m/%Y %H:%M:%S')
             del transacao_dict['data_transacao']
@@ -358,7 +351,6 @@ def definir_ou_atualizar_orcamento(usuario_id, categoria, valor, mes, ano):
     conn = criar_conexao()
     if conn is None: return False
     try:
-        # SQLite usa a sintaxe INSERT ... ON CONFLICT ... DO UPDATE
         query = """
             INSERT INTO orcamentos (usuario_id, categoria, valor, mes, ano)
             VALUES (?, ?, ?, ?, ?)
