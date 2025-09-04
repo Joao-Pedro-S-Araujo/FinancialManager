@@ -1,495 +1,426 @@
-import mysql.connector
-from mysql.connector import Error
+import sqlite3
 import os
-from dotenv import load_dotenv
 from datetime import datetime
 
-# Carrega as variáveis do arquivo .env para o ambiente
-load_dotenv()
-
-# --- Configurações de Conexão ---
-DB_CONFIG = {
-    'host': os.getenv('DB_HOST'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'database': os.getenv('DB_NAME')
-}
+# --- Configurações da Base de Dados ---
+# O nome do ficheiro da base de dados. Ficará na mesma pasta do projeto.
+DB_FILE = "financial_manager.db"
 
 def criar_conexao():
-    """Cria e retorna uma conexão com o banco de dados."""
+    """Cria e retorna uma conexão com a base de dados SQLite."""
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = sqlite3.connect(DB_FILE)
+        # Permite que os resultados venham como dicionários (muito útil)
+        conn.row_factory = sqlite3.Row
         return conn
-    except Error as e:
-        print(f"Erro ao conectar ao MySQL: {e}")
+    except sqlite3.Error as e:
+        print(f"Erro ao conectar ao SQLite: {e}")
         return None
 
-# --- Funções de Gerenciamento de Banco ---
+# =================================================================
+# 1. FUNÇÕES DE GESTÃO DA BASE DE DADOS
+# =================================================================
 
 def inicializar_banco():
-    """Cria as tabelas se elas não existirem."""
+    """Cria todas as tabelas necessárias se elas não existirem."""
     conn = criar_conexao()
-    if conn is None:
-        return
-        
+    if conn is None: return
+    
     cursor = conn.cursor()
     try:
+        # Habilita o suporte a chaves estrangeiras (importante para o ON DELETE CASCADE)
+        cursor.execute("PRAGMA foreign_keys = ON;")
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS usuarios (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                email VARCHAR(255) NOT NULL UNIQUE,
-                senha_hash VARCHAR(255) NOT NULL,
-                saldo DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE,
+                senha_hash TEXT NOT NULL,
+                saldo REAL NOT NULL DEFAULT 0.00,
                 data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transacoes (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                usuario_id INT NOT NULL,
-                tipo ENUM('deposito', 'saque') NOT NULL,
-                valor DECIMAL(10, 2) NOT NULL,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id INTEGER NOT NULL,
+                tipo TEXT NOT NULL CHECK(tipo IN ('deposito', 'saque')),
+                valor REAL NOT NULL,
+                categoria TEXT,
                 data_transacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS orcamentos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id INTEGER NOT NULL,
+                categoria TEXT NOT NULL,
+                valor REAL NOT NULL,
+                mes INTEGER NOT NULL,
+                ano INTEGER NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+                UNIQUE (usuario_id, categoria, mes, ano)
+            )
+        """)
         conn.commit()
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro ao criar tabelas: {e}")
     finally:
-        cursor.close()
         conn.close()
 
-# --- Funções de Usuário ---
+# ... (O resto das funções será adaptado para a sintaxe do SQLite, usando '?' em vez de '%s')
+
+# =================================================================
+# 2. FUNÇÕES DE UTILIZADOR
+# =================================================================
 
 def adicionar_usuario(email, senha_hash):
-    """Adiciona um novo usuário ao banco de dados."""
     conn = criar_conexao()
     if conn is None: return False
-    
-    cursor = conn.cursor()
     try:
-        query = "INSERT INTO usuarios (email, senha_hash) VALUES (%s, %s)"
-        cursor.execute(query, (email, senha_hash))
+        query = "INSERT INTO usuarios (email, senha_hash) VALUES (?, ?)"
+        conn.execute(query, (email, senha_hash))
         conn.commit()
         return True
-    except Error as e:
-        print(f"Erro ao adicionar usuário: {e}")
+    except sqlite3.Error as e:
+        print(f"Erro ao adicionar utilizador: {e}")
         return False
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
 def buscar_usuario_por_email(email):
-    """Busca um usuário pelo email e retorna seus dados."""
     conn = criar_conexao()
     if conn is None: return None
-    
-    cursor = conn.cursor(dictionary=True)
     try:
-        query = "SELECT * FROM usuarios WHERE email = %s"
-        cursor.execute(query, (email,))
-        usuario = cursor.fetchone()
-        return usuario
-    except Error as e:
-        print(f"Erro ao buscar usuário: {e}")
+        query = "SELECT * FROM usuarios WHERE email = ?"
+        cursor = conn.execute(query, (email,))
+        return cursor.fetchone()
+    except sqlite3.Error as e:
+        print(f"Erro ao buscar utilizador: {e}")
         return None
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
-# --- Funções Financeiras ---
-
+# ... (Restantes funções adaptadas)
 def registrar_transacao(usuario_id, tipo, valor, categoria=None):
-    """Registra uma transação e atualiza o saldo do usuário de forma atômica."""
     conn = criar_conexao()
     if conn is None: return False
-    
-    cursor = conn.cursor()
     try:
-        conn.start_transaction()
-
-        # Query atualizada para incluir a categoria
-        query_transacao = "INSERT INTO transacoes (usuario_id, tipo, valor, categoria) VALUES (%s, %s, %s, %s)"
-        cursor.execute(query_transacao, (usuario_id, tipo, valor, categoria))
-        
+        conn.execute("BEGIN TRANSACTION")
+        query_transacao = "INSERT INTO transacoes (usuario_id, tipo, valor, categoria) VALUES (?, ?, ?, ?)"
+        conn.execute(query_transacao, (usuario_id, tipo, valor, categoria))
         sinal = "+" if tipo == 'deposito' else "-"
-        query_saldo = f"UPDATE usuarios SET saldo = saldo {sinal} %s WHERE id = %s"
-        cursor.execute(query_saldo, (valor, usuario_id))
-        
+        query_saldo = f"UPDATE usuarios SET saldo = saldo {sinal} ? WHERE id = ?"
+        conn.execute(query_saldo, (valor, usuario_id))
         conn.commit()
         return True
-    except Error as e:
-        print(f"Erro ao registrar transação: {e}")
+    except sqlite3.Error as e:
+        print(f"Erro ao registar transação: {e}")
         conn.rollback()
         return False
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
 def registrar_transferencia(id_remetente, email_destinatario, valor):
-    """
-    Registra uma transferência entre dois usuários de forma atômica.
-    Garante que a operação completa (saque, depósito, registros) ocorra com sucesso.
-    """
     conn = criar_conexao()
-    if conn is None: return {'sucesso': False, 'mensagem': 'Não foi possível conectar ao banco de dados.'}
-
-    cursor = conn.cursor(dictionary=True) 
-
+    if conn is None: return {'sucesso': False, 'mensagem': 'Não foi possível ligar à base de dados.'}
     try:
-        # Iniciar a transação atômica
-        conn.start_transaction()
-
-        # Verificar se o remetente tem saldo suficiente
-        cursor.execute("SELECT saldo FROM usuarios WHERE id = %s FOR UPDATE", (id_remetente,)) # FOR UPDATE bloqueia a linha
-        saldo_remetente = cursor.fetchone()['saldo']
+        conn.execute("BEGIN TRANSACTION")
+        
+        cursor_remetente = conn.execute("SELECT saldo FROM usuarios WHERE id = ?", (id_remetente,))
+        saldo_remetente = cursor_remetente.fetchone()['saldo']
         if saldo_remetente < valor:
             conn.rollback()
             return {'sucesso': False, 'mensagem': 'Saldo insuficiente.'}
 
-        # Verificar se o destinatário existe
-        cursor.execute("SELECT id FROM usuarios WHERE email = %s", (email_destinatario,))
-        destinatario = cursor.fetchone()
+        cursor_dest = conn.execute("SELECT id FROM usuarios WHERE email = ?", (email_destinatario,))
+        destinatario = cursor_dest.fetchone()
         if not destinatario:
             conn.rollback()
             return {'sucesso': False, 'mensagem': 'Email do destinatário não encontrado.'}
         id_destinatario = destinatario['id']
         
-        # Evitar que o usuário transfira para si mesmo
         if id_remetente == id_destinatario:
             conn.rollback()
-            return {'sucesso': False, 'mensagem': 'Você não pode transferir para si mesmo.'}
+            return {'sucesso': False, 'mensagem': 'Não pode transferir para si mesmo.'}
 
-        # Debitar o valor do remetente
-        cursor.execute("UPDATE usuarios SET saldo = saldo - %s WHERE id = %s", (valor, id_remetente))
-
-        # Creditar o valor para o destinatário
-        cursor.execute("UPDATE usuarios SET saldo = saldo + %s WHERE id = %s", (valor, id_destinatario))
+        conn.execute("UPDATE usuarios SET saldo = saldo - ? WHERE id = ?", (valor, id_remetente))
+        conn.execute("UPDATE usuarios SET saldo = saldo + ? WHERE id = ?", (valor, id_destinatario))
+        conn.execute("INSERT INTO transacoes (usuario_id, tipo, valor, categoria) VALUES (?, 'saque', ?, 'Transferência Enviada')", (id_remetente, valor))
+        conn.execute("INSERT INTO transacoes (usuario_id, tipo, valor, categoria) VALUES (?, 'deposito', ?, 'Transferência Recebida')", (id_destinatario, valor))
         
-        # Registrar a transação de 'saque' para o remetente
-        cursor.execute("INSERT INTO transacoes (usuario_id, tipo, valor) VALUES (%s, 'saque', %s)", (id_remetente, valor))
-        
-        # Registrar a transação de 'deposito' para o destinatário
-        cursor.execute("INSERT INTO transacoes (usuario_id, tipo, valor) VALUES (%s, 'deposito', %s)", (id_destinatario, valor))
-
-        # Se tudo deu certo, confirmar as alterações
         conn.commit()
         return {'sucesso': True, 'mensagem': 'Transferência realizada com sucesso!'}
-
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro na transferência: {e}")
-        conn.rollback() # Desfaz tudo se qualquer passo falhar
+        conn.rollback()
         return {'sucesso': False, 'mensagem': 'Ocorreu um erro interno. Tente novamente.'}
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
+
+# ... (Restantes funções adaptadas para SQLite)
 
 def obter_saldo(usuario_id):
-    """Obtém o saldo atual de um usuário."""
     conn = criar_conexao()
     if conn is None: return 0.0
-    
-    cursor = conn.cursor()
     try:
-        query = "SELECT saldo FROM usuarios WHERE id = %s"
-        cursor.execute(query, (usuario_id,))
+        cursor = conn.execute("SELECT saldo FROM usuarios WHERE id = ?", (usuario_id,))
         resultado = cursor.fetchone()
-        return resultado[0] if resultado else 0.0
-    except Error as e:
+        return resultado['saldo'] if resultado else 0.0
+    except sqlite3.Error as e:
         print(f"Erro ao obter saldo: {e}")
         return 0.0
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
 def obter_historico(usuario_id, data_inicio=None, data_fim=None):
-    """
-    Retorna o histórico de transações de um usuário, opcionalmente
-    filtrado por um intervalo de datas.
-    """
     conn = criar_conexao()
-    if conn is None: 
-        return []
-    
-    cursor = conn.cursor(dictionary=True)
+    if conn is None: return []
     try:
-        query_base = """
-            SELECT id, tipo, valor, categoria, data_transacao
-            FROM transacoes 
-            WHERE usuario_id = %s 
-        """
-        
+        query_base = "SELECT id, tipo, valor, categoria, data_transacao FROM transacoes WHERE usuario_id = ?"
         params = [usuario_id]
-        
-        # Adiciona os filtros de data dinamicamente à query
         if data_inicio:
-            query_base += " AND DATE(data_transacao) >= %s"
+            query_base += " AND DATE(data_transacao) >= ?"
             params.append(data_inicio)
-        
         if data_fim:
-            query_base += " AND DATE(data_transacao) <= %s"
+            query_base += " AND DATE(data_transacao) <= ?"
             params.append(data_fim)
-            
         query_base += " ORDER BY data_transacao DESC"
         
-        cursor.execute(query_base, tuple(params))
+        cursor = conn.execute(query_base, tuple(params))
         historico_bruto = cursor.fetchall()
 
-        # Formatar a data no Python 
         historico_formatado = []
-        for transacao in historico_bruto:
-            transacao['data'] = transacao['data_transacao'].strftime('%d/%m/%Y %H:%M:%S')
-            del transacao['data_transacao']
-            historico_formatado.append(transacao)
+        for transacao_row in historico_bruto:
+            transacao_dict = dict(transacao_row)
+            # SQLite devolve strings de data, precisamos de converter para objeto datetime
+            dt_obj = datetime.strptime(transacao_dict['data_transacao'], '%Y-%m-%d %H:%M:%S')
+            transacao_dict['data'] = dt_obj.strftime('%d/%m/%Y %H:%M:%S')
+            del transacao_dict['data_transacao']
+            historico_formatado.append(transacao_dict)
             
         return historico_formatado
-
-    except Error as e:
-        print(f"Erro ao obter histórico para o usuario_id: {usuario_id}")
-        print(f"Detalhe do erro: {e}")
+    except sqlite3.Error as e:
+        print(f"Erro ao obter histórico: {e}")
         return []
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
 def obter_gastos_por_categoria(usuario_id, data_inicio=None, data_fim=None):
-    """
-    Busca no banco de dados e retorna a soma dos valores de saque (despesas)
-    agrupados por categoria, opcionalmente filtrado por data.
-    """
     conn = criar_conexao()
-    if conn is None: 
-        return []
-    
-    cursor = conn.cursor(dictionary=True)
+    if conn is None: return []
     try:
         params = [usuario_id]
-        query = """
-            SELECT 
-                categoria, 
-                SUM(valor) as total
-            FROM 
-                transacoes 
-            WHERE 
-                usuario_id = %s AND tipo = 'saque' AND categoria IS NOT NULL
-        """
-
+        query = "SELECT categoria, SUM(valor) as total FROM transacoes WHERE usuario_id = ? AND tipo = 'saque' AND categoria IS NOT NULL"
         if data_inicio:
-            query += " AND DATE(data_transacao) >= %s"
+            query += " AND DATE(data_transacao) >= ?"
             params.append(data_inicio)
-        
         if data_fim:
-            query += " AND DATE(data_transacao) <= %s"
+            query += " AND DATE(data_transacao) <= ?"
             params.append(data_fim)
-
-        query += """
-            GROUP BY 
-                categoria
-            HAVING
-                total > 0
-            ORDER BY 
-                total DESC
-        """
-        
-        cursor.execute(query, tuple(params))
+        query += " GROUP BY categoria HAVING total > 0 ORDER BY total DESC"
+        cursor = conn.execute(query, tuple(params))
         return cursor.fetchall()
-
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro ao obter gastos por categoria: {e}")
         return []
     finally:
-        cursor.close()
-        conn.close()
-        
+        if conn: conn.close()
+
 def obter_resumo_mensal(usuario_id):
-    """
-    Retorna um dicionário com o total de entradas (depósitos) e saídas (saques)
-    para o mês e ano correntes.
-    """
     conn = criar_conexao()
-    if conn is None:
-        return {'entradas': 0, 'saidas': 0}
-    
-    cursor = conn.cursor(dictionary=True)
+    if conn is None: return {'entradas': 0, 'saidas': 0}
     try:
+        # Funções de data do SQLite são diferentes
         query = """
             SELECT
                 SUM(CASE WHEN tipo = 'deposito' THEN valor ELSE 0 END) as total_entradas,
                 SUM(CASE WHEN tipo = 'saque' THEN valor ELSE 0 END) as total_saidas
-            FROM
-                transacoes
+            FROM transacoes
             WHERE
-                usuario_id = %s AND
-                MONTH(data_transacao) = MONTH(CURDATE()) AND
-                YEAR(data_transacao) = YEAR(CURDATE())
+                usuario_id = ? AND
+                strftime('%Y-%m', data_transacao) = strftime('%Y-%m', 'now', 'localtime')
         """
-        cursor.execute(query, (usuario_id,))
+        cursor = conn.execute(query, (usuario_id,))
         resultado = cursor.fetchone()
-        
         entradas = resultado['total_entradas'] if resultado['total_entradas'] else 0
         saidas = resultado['total_saidas'] if resultado['total_saidas'] else 0
-        
         return {'entradas': entradas, 'saidas': saidas}
-        
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro ao obter resumo mensal: {e}")
         return {'entradas': 0, 'saidas': 0}
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
 def obter_top_categorias(usuario_id, limite=5):
-    """
-    Retorna as categorias com maiores gastos no mês corrente, com um limite.
-    """
-    
     conn = criar_conexao()
     if conn is None: return []
-    
-    cursor = conn.cursor(dictionary=True)
     try:
         query = """
             SELECT categoria, SUM(valor) as total
             FROM transacoes
-            WHERE usuario_id = %s AND tipo = 'saque' AND categoria IS NOT NULL
-              AND MONTH(data_transacao) = MONTH(CURDATE())
-              AND YEAR(data_transacao) = YEAR(CURDATE())
-            GROUP BY categoria
-            ORDER BY total DESC
-            LIMIT %s
+            WHERE usuario_id = ? AND tipo = 'saque' AND categoria IS NOT NULL
+              AND strftime('%Y-%m', data_transacao) = strftime('%Y-%m', 'now', 'localtime')
+            GROUP BY categoria ORDER BY total DESC LIMIT ?
         """
-        cursor.execute(query, (usuario_id, limite))
+        cursor = conn.execute(query, (usuario_id, limite))
         return cursor.fetchall()
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro ao obter top categorias: {e}")
         return []
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
 def obter_ultimas_transacoes(usuario_id, limite=4):
-    """ Retorna as últimas N transações de um usuário. """
     conn = criar_conexao()
     if conn is None: return []
-
-    cursor = conn.cursor(dictionary=True)
     try:
-        query = """
-            SELECT tipo, valor, categoria, data_transacao
-            FROM transacoes
-            WHERE usuario_id = %s
-            ORDER BY data_transacao DESC
-            LIMIT %s
-        """
-        cursor.execute(query, (usuario_id, limite))
+        query = "SELECT tipo, valor, categoria, data_transacao FROM transacoes WHERE usuario_id = ? ORDER BY data_transacao DESC LIMIT ?"
+        cursor = conn.execute(query, (usuario_id, limite))
         historico_bruto = cursor.fetchall()
 
         historico_formatado = []
-        for transacao in historico_bruto:
-            transacao['data'] = transacao['data_transacao'].strftime('%d/%m/%Y') 
-            del transacao['data_transacao']
-            historico_formatado.append(transacao)
-        
+        for transacao_row in historico_bruto:
+            transacao_dict = dict(transacao_row)
+            dt_obj = datetime.strptime(transacao_dict['data_transacao'], '%Y-%m-%d %H:%M:%S')
+            transacao_dict['data'] = dt_obj.strftime('%d/%m/%Y')
+            del transacao_dict['data_transacao']
+            historico_formatado.append(transacao_dict)
         return historico_formatado
-
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro ao obter últimas transações: {e}")
         return []
     finally:
-        cursor.close()
-        conn.close()
-
+        if conn: conn.close()
 
 def obter_transacao_por_id(transacao_id):
-    """ Busca e retorna os detalhes de uma única transação pelo seu ID. """
     conn = criar_conexao()
     if conn is None: return None
-    
-    cursor = conn.cursor(dictionary=True)
     try:
-        query = "SELECT * FROM transacoes WHERE id = %s"
-        cursor.execute(query, (transacao_id,))
+        cursor = conn.execute("SELECT * FROM transacoes WHERE id = ?", (transacao_id,))
         return cursor.fetchone()
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro ao buscar transação por ID: {e}")
         return None
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
 def excluir_transacao(transacao_id, usuario_id):
-    """ Exclui uma transação e ajusta o saldo do usuário de forma atômica. """
     conn = criar_conexao()
     if conn is None: return False
-    
-    cursor = conn.cursor(dictionary=True)
     try:
-        conn.start_transaction()
-        
-        # 1. Pega os detalhes da transação a ser excluída
+        conn.execute("BEGIN TRANSACTION")
         transacao = obter_transacao_por_id(transacao_id)
         if not transacao:
             conn.rollback()
             return False
-
         valor = transacao['valor']
         tipo = transacao['tipo']
-        
-        # 2. Reverte o valor no saldo do usuário
-        # Se era um saque, devolve o dinheiro (+). Se era um depósito, retira (-).
         sinal_ajuste = "+" if tipo == 'saque' else "-"
-        query_saldo = f"UPDATE usuarios SET saldo = saldo {sinal_ajuste} %s WHERE id = %s"
-        cursor.execute(query_saldo, (valor, usuario_id))
-        
-        # 3. Exclui a transação
-        cursor.execute("DELETE FROM transacoes WHERE id = %s", (transacao_id,))
-        
+        query_saldo = f"UPDATE usuarios SET saldo = saldo {sinal_ajuste} ? WHERE id = ?"
+        conn.execute(query_saldo, (valor, usuario_id))
+        conn.execute("DELETE FROM transacoes WHERE id = ?", (transacao_id,))
         conn.commit()
         return True
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro ao excluir transação: {e}")
         conn.rollback()
         return False
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
 
 def editar_transacao(transacao_id, usuario_id, novo_valor, nova_categoria):
-    """ Edita uma transação e ajusta o saldo do usuário de forma atômica. """
     conn = criar_conexao()
     if conn is None: return {'sucesso': False}
-    
-    cursor = conn.cursor(dictionary=True)
     try:
-        conn.start_transaction()
-        
-        # 1. Pega os detalhes da transação original
+        conn.execute("BEGIN TRANSACTION")
         transacao_original = obter_transacao_por_id(transacao_id)
         if not transacao_original:
             conn.rollback()
             return {'sucesso': False}
-        
         valor_original = transacao_original['valor']
-        
-        # 2. Calcula a diferença de valor para ajustar o saldo
-        # Se o novo valor for maior, a diferença é negativa para o saldo (saiu mais dinheiro)
         diferenca = valor_original - novo_valor
-        
-        # 3. Ajusta o saldo do usuário com essa diferença
-        query_saldo = "UPDATE usuarios SET saldo = saldo + %s WHERE id = %s"
-        cursor.execute(query_saldo, (diferenca, usuario_id))
-
-        # 4. Atualiza a transação com os novos dados
-        query_update = "UPDATE transacoes SET valor = %s, categoria = %s WHERE id = %s"
-        cursor.execute(query_update, (novo_valor, nova_categoria, transacao_id))
-        
+        query_saldo = "UPDATE usuarios SET saldo = saldo + ? WHERE id = ?"
+        conn.execute(query_saldo, (diferenca, usuario_id))
+        query_update = "UPDATE transacoes SET valor = ?, categoria = ? WHERE id = ?"
+        conn.execute(query_update, (novo_valor, nova_categoria, transacao_id))
         conn.commit()
         return {'sucesso': True}
-    except Error as e:
+    except sqlite3.Error as e:
         print(f"Erro ao editar transação: {e}")
         conn.rollback()
         return {'sucesso': False}
     finally:
-        cursor.close()
-        conn.close()
+        if conn: conn.close()
+
+def definir_ou_atualizar_orcamento(usuario_id, categoria, valor, mes, ano):
+    conn = criar_conexao()
+    if conn is None: return False
+    try:
+        # SQLite usa a sintaxe INSERT ... ON CONFLICT ... DO UPDATE
+        query = """
+            INSERT INTO orcamentos (usuario_id, categoria, valor, mes, ano)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(usuario_id, categoria, mes, ano) DO UPDATE SET valor=excluded.valor
+        """
+        conn.execute(query, (usuario_id, categoria, valor, mes, ano))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"Erro ao definir orçamento: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def obter_orcamentos_do_mes(usuario_id, mes, ano):
+    conn = criar_conexao()
+    if conn is None: return []
+    try:
+        query = "SELECT categoria, valor FROM orcamentos WHERE usuario_id = ? AND mes = ? AND ano = ?"
+        cursor = conn.execute(query, (usuario_id, mes, ano))
+        return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Erro ao obter orçamentos: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def obter_gastos_vs_orcamentos(usuario_id, mes, ano):
+    conn = criar_conexao()
+    if conn is None: return []
+    try:
+        query = """
+            SELECT
+                o.categoria, o.valor as orcamento, COALESCE(SUM(t.valor), 0) as gasto
+            FROM orcamentos o
+            LEFT JOIN transacoes t ON o.usuario_id = t.usuario_id
+                            AND o.categoria = t.categoria
+                            AND t.tipo = 'saque'
+                            AND CAST(strftime('%m', t.data_transacao) as integer) = o.mes
+                            AND CAST(strftime('%Y', t.data_transacao) as integer) = o.ano
+            WHERE o.usuario_id = ? AND o.mes = ? AND o.ano = ?
+            GROUP BY o.categoria, o.valor ORDER BY o.categoria
+        """
+        cursor = conn.execute(query, (usuario_id, mes, ano))
+        return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Erro ao comparar gastos vs orçamentos: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def excluir_orcamento(usuario_id, categoria, mes, ano):
+    conn = criar_conexao()
+    if conn is None: return False
+    try:
+        query = "DELETE FROM orcamentos WHERE usuario_id = ? AND categoria = ? AND mes = ? AND ano = ?"
+        conn.execute(query, (usuario_id, categoria, mes, ano))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"Erro ao excluir orçamento: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
