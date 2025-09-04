@@ -1,15 +1,22 @@
-# Arquivo de credenciais
+# Ambiente Virtual do Python
+venv/
+
+# Ficheiro de segredos (credenciais da base de dados)
 .env
 
-# Arquivos de ambiente virtual do Python
-venv/
-*.pyc
-__pycache__/
+# Base de dados SQLite - NUNCA partilhe dados de utilizadores!
+*.db
+*.db-journal
 
-# Arquivos de configuração de IDEs
+# Cache do Python
+__pycache__/
+*.pyc
+
+# Ficheiros gerados pelo PyInstaller
+dist/
+build/
+*.spec
+
+# Ficheiros de IDE/Editor
 .vscode/
 .idea/
-
-# Arquivos de sistema operacional
-.DS_Store
-Thumbs.db
