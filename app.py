@@ -304,28 +304,84 @@ def mostrar_historico():
     atualizar_historico()
 
 def abrir_janela_relatorio():
-    user_id = usuario_logado['id']
-    dados_categorias = db_manager.obter_gastos_por_categoria(user_id)
-    if not dados_categorias:
-        messagebox.showinfo("Relatório", "Não há dados de despesas categorizadas para exibir.", parent=janela)
-        return
+    """Abre uma nova janela que exibe um gráfico de barras dos gastos por categoria com filtros de data."""
+    janela_rel = tk.Toplevel(janela)
+    janela_rel.title("Relatório de Despesas por Categoria")
+    janela_rel.geometry("900x700") # Aumentei a altura para os filtros
+    janela_rel.configure(bg=COR_PRINCIPAL)
+    janela_rel.transient(janela)
+    janela_rel.grab_set()
 
-    janela_rel = tk.Toplevel(janela); janela_rel.title("Relatório de Despesas"); janela_rel.geometry("900x600"); janela_rel.configure(bg=COR_PRINCIPAL); janela_rel.transient(janela); janela_rel.grab_set()
-    labels = [item['categoria'] for item in dados_categorias]; sizes = [item['total'] for item in dados_categorias]
-    labels.reverse(); sizes.reverse()
-    fig = Figure(figsize=(8, 6), dpi=100, facecolor=COR_PRINCIPAL); ax = fig.add_subplot(111)
-    ax.set_facecolor(COR_SECUNDARIA); ax.tick_params(axis='x', colors=COR_TEXTO); ax.tick_params(axis='y', colors=COR_TEXTO)
-    ax.spines['bottom'].set_color(COR_TEXTO); ax.spines['top'].set_color(COR_SECUNDARIA); ax.spines['right'].set_color(COR_SECUNDARIA); ax.spines['left'].set_color(COR_TEXTO)
-    bars = ax.barh(labels, sizes, color=COR_BOTAO, height=0.6)
-    for bar in bars:
-        width = bar.get_width()
-        label_text = f" R$ {width:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        ax.text(width, bar.get_y() + bar.get_height()/2.0, label_text, va='center', ha='left', color=COR_TEXTO, fontweight='bold')
-    ax.set_xlabel('Valor Gasto (R$)', color=COR_TEXTO, fontsize=12); ax.set_title('Gastos Totais por Categoria', color=COR_TEXTO, fontsize=16, pad=20)
-    ax.grid(axis='x', color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
-    fig.tight_layout()
-    canvas = FigureCanvasTkAgg(fig, master=janela_rel); canvas.draw(); canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1, padx=20, pady=20)
+    # --- Frame para os Filtros ---
+    frame_filtros = tk.Frame(janela_rel, bg=COR_PRINCIPAL)
+    frame_filtros.pack(pady=10, padx=20, fill='x')
 
+    tk.Label(frame_filtros, text="De:", bg=COR_PRINCIPAL, fg=COR_TEXTO, font=FONTE).pack(side='left', padx=(0, 5))
+    cal_inicio = DateEntry(frame_filtros, width=12, background=COR_BOTAO, date_pattern='dd/mm/yyyy', foreground='white', borderwidth=2, font=FONTE)
+    cal_inicio.pack(side='left')
+    cal_inicio.set_date(None); cal_inicio.delete(0, "end")
+
+    tk.Label(frame_filtros, text="Até:", bg=COR_PRINCIPAL, fg=COR_TEXTO, font=FONTE).pack(side='left', padx=(20, 5))
+    cal_fim = DateEntry(frame_filtros, width=12, background=COR_BOTAO, date_pattern='dd/mm/yyyy', foreground='white', borderwidth=2, font=FONTE)
+    cal_fim.pack(side='left')
+    cal_fim.set_date(None); cal_fim.delete(0, "end")
+
+    # --- Frame para o Gráfico ---
+    frame_grafico = tk.Frame(janela_rel, bg=COR_PRINCIPAL)
+    frame_grafico.pack(expand=True, fill='both', padx=20, pady=10)
+
+    fig = Figure(figsize=(8, 6), dpi=100, facecolor=COR_PRINCIPAL)
+    canvas = FigureCanvasTkAgg(fig, master=frame_grafico)
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+    # --- Função para Atualizar o Gráfico ---
+    def atualizar_grafico():
+        data_inicio_val = cal_inicio.get_date()
+        data_fim_val = cal_fim.get_date()
+        
+        dados_categorias = db_manager.obter_gastos_por_categoria(usuario_logado['id'], data_inicio_val, data_fim_val)
+        
+        fig.clear() # Limpa o gráfico anterior
+        ax = fig.add_subplot(111)
+        ax.set_facecolor(COR_SECUNDARIA)
+
+        if not dados_categorias:
+            ax.text(0.5, 0.5, "Sem dados para o período selecionado.", color=COR_TEXTO, ha='center', va='center', fontsize=14)
+            ax.tick_params(axis='x', colors=COR_SECUNDARIA)
+            ax.tick_params(axis='y', colors=COR_SECUNDARIA)
+        else:
+            labels = [item['categoria'] for item in dados_categorias]
+            sizes = [item['total'] for item in dados_categorias]
+            labels.reverse(); sizes.reverse()
+
+            ax.tick_params(axis='x', colors=COR_TEXTO); ax.tick_params(axis='y', colors=COR_TEXTO)
+            ax.spines['bottom'].set_color(COR_TEXTO); ax.spines['top'].set_color(COR_SECUNDARIA)
+            ax.spines['right'].set_color(COR_SECUNDARIA); ax.spines['left'].set_color(COR_TEXTO)
+            
+            bars = ax.barh(labels, sizes, color=COR_BOTAO, height=0.6)
+            for bar in bars:
+                width = bar.get_width()
+                label_text = f" R$ {width:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                ax.text(width, bar.get_y() + bar.get_height()/2.0, label_text, va='center', ha='left', color=COR_TEXTO, fontweight='bold')
+            
+            ax.set_xlabel('Valor Gasto (R$)', color=COR_TEXTO, fontsize=12)
+            ax.grid(axis='x', color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+
+        ax.set_title('Gastos Totais por Categoria', color=COR_TEXTO, fontsize=16, pad=20)
+        fig.tight_layout()
+        canvas.draw()
+
+    def limpar_filtros():
+        cal_inicio.set_date(None); cal_inicio.delete(0, "end")
+        cal_fim.set_date(None); cal_fim.delete(0, "end")
+        atualizar_grafico()
+
+    ttk.Button(frame_filtros, text="Filtrar", command=atualizar_grafico).pack(side='left', padx=(20, 5))
+    ttk.Button(frame_filtros, text="Limpar Filtro", command=limpar_filtros).pack(side='left', padx=5)
+
+    # Carrega o gráfico com todos os dados na primeira vez
+    atualizar_grafico()
+    
 def preencher_dashboard():
     user_id = usuario_logado['id']
     for widget in frame_principal.winfo_children():
