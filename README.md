@@ -47,7 +47,7 @@ Existem duas maneiras de executar a aplicação:
 ### 1. A Partir do Executável (Recomendado para Utilizadores)
 A forma mais fácil de testar a aplicação.
 
-1.  Vá à secção de [**Releases**](https://github.com/seu-utilizador/seu-repositorio/releases) deste repositório.
+1.  Vá à secção de [**Releases**](https://github.com/Joao-Pedro-S-Araujo/FinancialManager/releases) deste repositório.
 2.  Descarregue o ficheiro `FinancialManager_v1.0.zip`.
 3.  Extraia o conteúdo e execute o ficheiro `app.exe`.
 
