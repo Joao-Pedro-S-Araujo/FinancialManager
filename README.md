@@ -51,7 +51,6 @@ A forma mais fácil de testar a aplicação.
 2.  Descarregue o ficheiro `FinancialManager_v1.0.zip`.
 3.  Extraia o conteúdo e execute o ficheiro `app.exe`.
 
-*(Nota: Lembre-se de substituir `seu-utilizador/seu-repositorio` pelo seu link real do GitHub)*
 
 ### 2. A Partir do Código-Fonte (Para Desenvolvedores)
 
@@ -62,7 +61,7 @@ A forma mais fácil de testar a aplicação.
 
 1.  Clone o repositório:
     ```bash
-    git clone [https://github.com/seu-utilizador/seu-repositorio.git](https://github.com/seu-utilizador/seu-repositorio.git)
+    git clone [https://github.com/Joao-Pedro-S-Araujo/FinancialManager.git](https://github.com/Joao-Pedro-S-Araujo/FinancialManager.git)
     cd seu-repositorio
     ```
 2.  Crie e ative um ambiente virtual:
